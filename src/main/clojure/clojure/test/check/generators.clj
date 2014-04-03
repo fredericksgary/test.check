@@ -443,7 +443,13 @@
   [& generators]
   (gen-bind (sequence gen-bind gen-pure generators)
             (fn [roses]
-              (gen-pure (zip-rose clojure.core/vector roses)))))
+              (let [shrinkable? (not-empty (mapcat rose-children roses))
+                    all-shrunk (mapv (fn [rose]
+                                       (if-let [[x] (seq (rose-children rose))]
+                                         x
+                                         rose))
+                                     roses)]
+                (gen-pure (zip-rose clojure.core/vector roses))))))
 
 (def int
   "Generates a positive or negative integer bounded by the generator's
