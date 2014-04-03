@@ -79,11 +79,14 @@
   The value returned is the left-most failing example at the depth where a
   passing example was found."
   [rose-tree]
+  (println "Shrinking:")
   (let [shrinks-this-depth (gen/rose-children rose-tree)]
     (loop [nodes shrinks-this-depth
            current-smallest (gen/rose-root rose-tree)
            total-nodes-visited 0
            depth 0]
+      (print \.)
+      (flush)
       (if (empty? nodes)
         (smallest-shrink total-nodes-visited depth current-smallest)
         (let [head (first nodes)
@@ -106,7 +109,7 @@
   (let [root (gen/rose-root failing-rose-tree)
         result (:result root)
         failing-args (:args root)]
-
+    (println "test.check test failed! result:" result)
     (ct/report-failure property result trial-number failing-args)
 
     {:result result
