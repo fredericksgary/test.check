@@ -88,8 +88,6 @@
            total-nodes-visited 0
            depth 0]
       ;; instant feedback
-      (print \.)
-      (flush)
       (reset! current-shrink current-smallest)
 
       (if (empty? nodes)
@@ -98,16 +96,20 @@
               tail (rest nodes)]
           (let [result (:result (gen/rose-root head))]
             (if (not-falsey-or-exception? result)
-              ;; this node passed the test, so now try testing its right-siblings
-              (recur tail current-smallest (inc total-nodes-visited) depth)
+              ;; this node passed the test, so now try testing it's right-siblings
+              (do
+                (print \.) (flush)
+                (recur tail current-smallest (inc total-nodes-visited) depth))
               ;; this node failed the test, so check if it has children,
               ;; if so, traverse down them. If not, save this as the best example
               ;; seen now and then look at the right-siblings
               ;; children
-              (let [children (gen/rose-children head)]
-                (if (empty? children)
-                  (recur tail (gen/rose-root head) (inc total-nodes-visited) depth)
-                  (recur children (gen/rose-root head) (inc total-nodes-visited) (inc depth)))))))))))
+              (do
+                (print \X) (flush)
+                (let [children (gen/rose-children head)]
+                  (if (empty? children)
+                    (recur tail (gen/rose-root head) (inc total-nodes-visited) depth)
+                    (recur children (gen/rose-root head) (inc total-nodes-visited) (inc depth))))))))))))
 
 (defn- failure
   [property failing-rose-tree trial-number size seed]
