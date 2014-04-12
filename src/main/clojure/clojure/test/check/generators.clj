@@ -81,6 +81,17 @@
   [f [root children]]
   [(f root) (clojure.core/map (partial rose-fmap f) children)])
 
+(defn rose-fmap-indexed
+  "Applies function `f` to all values in the tree, passing the
+  path to the current node as the first argument."
+  ([f rose] (rose-fmap-indexed f rose []))
+  ([f [root children] path]
+     [(f path root)
+      (clojure.core/map-indexed
+       (fn [i rose]
+         (rose-fmap-indexed f rose (conj path i)))
+       children)]))
+
 (defn rose-bind
   "Takes a Rose tree (m) and a function (k) from
   values to Rose tree and returns a new Rose tree.
@@ -255,18 +266,21 @@
   ([] (Random.))
   ([seed] (Random. seed)))
 
-(defn make-size-range-seq
+(defn make-seed-size-seq
   {:no-doc true}
-  [max-size]
-  (cycle (range 0 max-size)))
+  [seed max-size]
+  (let [^Random rand (random seed)]
+    (clojure.core/map
+     clojure.core/vector
+     (repeatedly #(.nextLong rand))
+     (cycle (range 0 max-size)))))
 
 (defn sample-seq
   "Return a sequence of realized values from `generator`."
   ([generator] (sample-seq generator 100))
   ([generator max-size]
-   (let [r (random)
-         size-seq (make-size-range-seq max-size)]
-     (clojure.core/map (comp rose-root (partial call-gen generator r)) size-seq))))
+     (core-for [[seed size] (make-seed-size-seq (System/currentTimeMillis) max-size)]
+       (rose-root (call-gen generator (random seed) size)))))
 
 (defn sample
   "Return a sequence of `num-samples` (default 10)

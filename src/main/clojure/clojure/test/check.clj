@@ -13,13 +13,6 @@
 
 (declare shrink-loop failure)
 
-(defn make-rng
-  [seed]
-  (if seed
-    [seed (gen/random seed)]
-    (let [non-nil-seed (System/currentTimeMillis)]
-      [non-nil-seed (gen/random non-nil-seed)])))
-
 (defn- complete
   [property num-trials seed]
   (ct/report-trial property num-trials num-trials)
@@ -30,6 +23,22 @@
   [value]
   (and value (not (instance? Throwable value))))
 
+(defn check-once
+  ;; this can't work at all can it.
+  ;;
+  ;; OH WELL WE'LL FIX IT LATER
+  [property [seed size path :as key]]
+  (let [result-map-rose (gen/call-gen property (gen/random seed) size)
+        result-map (loop [rose result-map-rose
+                          [idx & idxs] path]
+                     (if idx
+                       (recur (nth (gen/rose-children rose) idx) idxs)
+                       (gen/rose-root rose)))]
+    (if (not-falsey-or-exception? (:result result-map))
+      (complete property 1 0)
+      {:result (:result result-map)
+       :key key})))
+
 (defn quick-check
   "Tests `property` `num-tests` times.
 
@@ -38,23 +47,33 @@
       (def p (for-all [a gen/pos-int] (> (* a a) a)))
       (quick-check 100 p)
   "
-  [num-tests property & {:keys [seed max-size] :or {max-size 200}}]
-  (let [[created-seed rng] (make-rng seed)
-        size-seq (gen/make-size-range-seq max-size)]
-    (loop [so-far 0
-           size-seq size-seq]
-      (if (== so-far num-tests)
-        (complete property num-tests created-seed)
-        (let [[size & rest-size-seq] size-seq
-              result-map-rose (gen/call-gen property rng size)
-              result-map (gen/rose-root result-map-rose)
-              result (:result result-map)
-              args (:args result-map)]
-          (if (not-falsey-or-exception? result)
-            (do
-              (ct/report-trial property so-far num-tests)
-              (recur (inc so-far) rest-size-seq))
-            (failure property result-map-rose so-far size created-seed)))))))
+  [num-tests property & {:keys [seed max-size key] :or {max-size 200}}]
+  (let [meta-seed (or seed (System/currentTimeMillis))
+        seed-size-seq (gen/make-seed-size-seq meta-seed max-size)]
+    (if key
+      (check-once property key)
+      (loop [so-far 0
+             seed-size-seq seed-size-seq]
+        (if (== so-far num-tests)
+          (complete property num-tests meta-seed)
+          (let [[[seed size] & rest-seed-size-seq] seed-size-seq
+                result-map-rose (gen/call-gen property (gen/random seed) size)
+                result-map-rose (gen/rose-fmap-indexed
+                                 (fn [path result-map]
+                                   (assoc result-map :key
+                                          [seed size path]))
+                                 result-map-rose)
+                result-map (gen/rose-root result-map-rose)
+                result (:result result-map)
+                args (:args result-map)]
+            (if (not-falsey-or-exception? result)
+              (do
+                (ct/report-trial property so-far num-tests)
+                (recur (inc so-far) rest-seed-size-seq))
+              (failure property
+                       result-map-rose
+                       so-far
+                       size))))))))
 
 (defn- smallest-shrink
   [total-nodes-visited depth smallest]
@@ -108,7 +127,7 @@
                   (recur children (gen/rose-root head) (inc total-nodes-visited) (inc depth)))))))))))
 
 (defn- failure
-  [property failing-rose-tree trial-number size seed]
+  [property failing-rose-tree trial-number size]
   (let [root (gen/rose-root failing-rose-tree)
         result (:result root)
         failing-args (:args root)]
@@ -116,7 +135,7 @@
     (ct/report-failure property result trial-number failing-args)
 
     {:result result
-     :seed seed
+     :key (:key root)
      :failing-size size
      :num-tests (inc trial-number)
      :fail (vec failing-args)
