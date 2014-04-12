@@ -41,6 +41,24 @@
       {:result (:result result-map)
        :key key})))
 
+;; HMMM: We could get similar functionality via a special property
+;; that re-runs things and prints warnings, eh?
+(defn flaky-failure-data
+  "Returns a ratio indicating the failure rate, or nil if the test consistently fails."
+  [property result-map]
+  (let [[seed size] (:key result-map)
+        _ (assert (and seed size))
+        trial-count 10
+        run-trial (fn []
+                    (let [{:keys [result]}
+                          (gen/rose-root (gen/call-gen property (gen/random seed) size))]
+                      (boolean (not-falsey-or-exception? result))))
+        results (repeatedly (dec trial-count) run-trial)
+        failures (->> results (remove identity) (count))
+        failure-rate (/ (inc failures) trial-count)]
+    (when (< failure-rate 1)
+      failure-rate)))
+
 (defn quick-check
   "Tests `property` `num-tests` times.
 
@@ -72,10 +90,16 @@
               (do
                 (ct/report-trial property so-far num-tests)
                 (recur (inc so-far) rest-seed-size-seq))
-              (failure property
-                       result-map-rose
-                       so-far
-                       size))))))))
+              (if-let [data (flaky-failure-data property result-map)]
+                (do
+                  (println "WARNING: flaky failure detected!")
+                  (println "KEY:" (:key result-map))
+                  (println "INFO:" data)
+                  (recur (inc so-far) rest-seed-size-seq))
+                (failure property
+                         result-map-rose
+                         so-far
+                         size)))))))))
 
 (defn- smallest-shrink
   [total-nodes-visited depth smallest]
