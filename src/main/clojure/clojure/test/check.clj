@@ -82,6 +82,7 @@
   {:total-nodes-visited total-nodes-visited
    :depth depth
    :result (:result smallest)
+   :key (:key smallest)
    :smallest (:args smallest)})
 
 (defonce current-shrink (atom nil))
