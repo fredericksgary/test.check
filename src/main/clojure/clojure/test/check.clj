@@ -27,6 +27,8 @@
   ;; this can't work at all can it.
   ;;
   ;; OH WELL WE'LL FIX IT LATER
+  ;;
+  ;; Clean solution: change properties to create delays of results.
   [property [seed size path :as key]]
   (let [result-map-rose (gen/call-gen property (gen/random seed) size)
         result-map (loop [rose result-map-rose
@@ -131,7 +133,7 @@
   (let [root (gen/rose-root failing-rose-tree)
         result (:result root)
         failing-args (:args root)]
-    (println "test.check test failed! result:" result)
+    (println "test.check test failed!" {:result result :key (:key root)})
     (ct/report-failure property result trial-number failing-args)
 
     {:result result
