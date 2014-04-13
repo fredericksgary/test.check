@@ -114,7 +114,7 @@
         (let [[head & tail] nodes
               result (:result (gen/rose-root head))]
           (if (not-falsey-or-exception? result)
-            ;; this node passed the test, so now try testing it's right-siblings
+            ;; this node passed the test, so now try testing its right-siblings
             (do
               (print \.) (flush)
               (recur tail current-smallest (inc total-nodes-visited) depth))
