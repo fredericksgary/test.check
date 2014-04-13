@@ -11,8 +11,8 @@
   (:import java.util.Random)
   (:refer-clojure :exclude [int vector list hash-map map keyword
                             char boolean byte bytes sequence
-                            not-empty]
-                  :rename {for core-for}))
+                            not-empty])
+  (:require [clojure.core :as core]))
 
 ;; Generic helpers
 ;; ---------------------------------------------------------------------------
@@ -114,9 +114,9 @@
   {:no-doc true}
   [roses]
   (apply concat
-         (core-for [[rose index]
+         (core/for [[rose index]
                (clojure.core/map clojure.core/vector roses (range))]
-           (core-for [child (rose-children rose)] (assoc roses index child)))))
+           (core/for [child (rose-children rose)] (assoc roses index child)))))
 
 (defn zip-rose
   "Apply `f` to the sequence of Rose trees `roses`."
@@ -279,7 +279,7 @@
   "Return a sequence of realized values from `generator`."
   ([generator] (sample-seq generator 100))
   ([generator max-size]
-     (core-for [[seed size] (make-seed-size-seq (System/currentTimeMillis) max-size)]
+     (core/for [[seed size] (make-seed-size-seq (System/currentTimeMillis) max-size)]
        (rose-root (call-gen generator (random seed) size)))))
 
 (defn sample
