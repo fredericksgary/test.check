@@ -56,7 +56,7 @@
          (fmap-indexed f rose (conj path i)))
        children)]))
 
-(defn rose-bind
+(defn bind
   "Takes a Rose tree (m) and a function (k) from
   values to Rose tree and returns a new Rose tree.
   This is the monadic bind (>>=) for Rose trees."
