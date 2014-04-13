@@ -35,8 +35,8 @@
         result-map (loop [rose result-map-rose
                           [idx & idxs] path]
                      (if idx
-                       (recur (nth (gen/rose-children rose) idx) idxs)
-                       (gen/rose-root rose)))]
+                       (recur (nth (rose/children rose) idx) idxs)
+                       (rose/root rose)))]
     (if (not-falsey-or-exception? (:result result-map))
       (complete property 1 0)
       {:result (:result result-map)
@@ -50,7 +50,6 @@
       (def p (for-all [a gen/pos-int] (> (* a a) a)))
       (quick-check 100 p)
   "
-<<<<<<< HEAD
   [num-tests property & {:keys [seed max-size key] :or {max-size 200}}]
   (let [meta-seed (or seed (System/currentTimeMillis))
         seed-size-seq (gen/make-seed-size-seq meta-seed max-size)]
