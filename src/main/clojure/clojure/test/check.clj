@@ -9,7 +9,8 @@
 
 (ns clojure.test.check
   (:require [clojure.test.check.generators :as gen]
-            [clojure.test.check.clojure-test :as ct]))
+            [clojure.test.check.clojure-test :as ct]
+            [clojure.test.check.rose-tree :as rose]))
 
 (declare shrink-loop failure)
 
@@ -49,6 +50,7 @@
       (def p (for-all [a gen/pos-int] (> (* a a) a)))
       (quick-check 100 p)
   "
+<<<<<<< HEAD
   [num-tests property & {:keys [seed max-size key] :or {max-size 200}}]
   (let [meta-seed (or seed (System/currentTimeMillis))
         seed-size-seq (gen/make-seed-size-seq meta-seed max-size)]
@@ -60,12 +62,12 @@
           (complete property num-tests meta-seed)
           (let [[[seed size] & rest-seed-size-seq] seed-size-seq
                 result-map-rose (gen/call-gen property (gen/random seed) size)
-                result-map-rose (gen/rose-fmap-indexed
+                result-map-rose (rose/fmap-indexed
                                  (fn [path result-map]
                                    (assoc result-map :key
                                           [seed size path]))
                                  result-map-rose)
-                result-map (gen/rose-root result-map-rose)
+                result-map (rose/root result-map-rose)
                 result (:result result-map)
                 args (:args result-map)]
             (if (not-falsey-or-exception? result)
@@ -101,9 +103,9 @@
   passing example was found."
   [rose-tree]
   (println "Shrinking:")
-  (let [shrinks-this-depth (gen/rose-children rose-tree)]
+  (let [shrinks-this-depth (rose/children rose-tree)]
     (loop [nodes shrinks-this-depth
-           current-smallest (gen/rose-root rose-tree)
+           current-smallest (rose/root rose-tree)
            total-nodes-visited 0
            depth 0]
       ;; instant feedback
@@ -112,7 +114,7 @@
       (if (empty? nodes)
         (smallest-shrink total-nodes-visited depth current-smallest)
         (let [[head & tail] nodes
-              result (:result (gen/rose-root head))]
+              result (:result (rose/root head))]
           (if (not-falsey-or-exception? result)
             ;; this node passed the test, so now try testing its right-siblings
             (do
@@ -124,14 +126,14 @@
             ;; children
             (do
               (print \X) (flush)
-              (let [children (gen/rose-children head)]
+              (let [children (rose/children head)]
                 (if (empty? children)
-                  (recur tail (gen/rose-root head) (inc total-nodes-visited) depth)
-                  (recur children (gen/rose-root head) (inc total-nodes-visited) (inc depth)))))))))))
+                  (recur tail (rose/root head) (inc total-nodes-visited) depth)
+                  (recur children (rose/root head) (inc total-nodes-visited) (inc depth)))))))))))
 
 (defn- failure
   [property failing-rose-tree trial-number size]
-  (let [root (gen/rose-root failing-rose-tree)
+  (let [root (rose/root failing-rose-tree)
         result (:result root)
         failing-args (:args root)]
     (println "test.check test failed!" {:result result :key (:key root)})
