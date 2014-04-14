@@ -11,7 +11,7 @@
   (:import java.util.Random)
   (:refer-clojure :exclude [int vector list hash-map map keyword
                             char boolean byte bytes sequence
-                            not-empty])
+                            not-empty for])
   (:require [clojure.core :as core]
             [clojure.test.check.rose-tree :as rose]))
 
