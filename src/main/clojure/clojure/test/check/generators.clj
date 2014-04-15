@@ -126,21 +126,40 @@
   ([] (Random.))
   ([seed] (Random. seed)))
 
-(defn make-seed-size-seq
+(defn make-key-seq
   {:no-doc true}
   [seed max-size]
   (let [^Random rand (random seed)]
     (clojure.core/map
      clojure.core/vector
      (repeatedly #(.nextLong rand))
-     (cycle (range 0 max-size)))))
+     (cycle (range 0 max-size))
+     (repeat []))))
+
+(defn call-key
+  [gen [seed size path]]
+  (loop [rose (call-gen gen (random seed) size)
+         path path]
+    (if-let [[idx & idxs] (seq path)]
+      (recur (nth (rose/children rose) idx) idxs)
+      rose)))
+
+(defn call-key-with-meta
+  "Like call-key, but adds :key metadata to each element in the
+  resulting rose tree. Thus the elements of the rose tree must
+  be IObj."
+  [gen [seed size path :as key]]
+  (rose/fmap-indexed
+   (fn [path' x]
+     (vary-meta x assoc :key [seed size (into path path')]))
+   (call-key gen key)))
 
 (defn sample-seq
   "Return a sequence of realized values from `generator`."
   ([generator] (sample-seq generator 100))
   ([generator max-size]
-     (core/for [[seed size] (make-seed-size-seq (System/currentTimeMillis) max-size)]
-       (rose/root (call-gen generator (random seed) size)))))
+     (core/for [key (make-key-seq (System/currentTimeMillis) max-size)]
+       (rose/root (call-key generator key)))))
 
 (defn sample
   "Return a sequence of `num-samples` (default 10)

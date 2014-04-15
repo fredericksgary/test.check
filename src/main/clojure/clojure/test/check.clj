@@ -24,24 +24,6 @@
   [value]
   (and value (not (instance? Throwable value))))
 
-(defn check-once
-  ;; this can't work at all can it.
-  ;;
-  ;; OH WELL WE'LL FIX IT LATER
-  ;;
-  ;; Clean solution: change properties to create delays of results.
-  [property [seed size path :as key]]
-  (let [result-map-rose (gen/call-gen property (gen/random seed) size)
-        result-map (loop [rose result-map-rose
-                          [idx & idxs] path]
-                     (if idx
-                       (recur (nth (rose/children rose) idx) idxs)
-                       (rose/root rose)))]
-    (if (not-falsey-or-exception? (:result result-map))
-      (complete property 1 0)
-      {:result (:result result-map)
-       :key key})))
-
 (defn quick-check
   "Tests `property` `num-tests` times.
 
@@ -50,33 +32,27 @@
       (def p (for-all [a gen/pos-int] (> (* a a) a)))
       (quick-check 100 p)
   "
-  [num-tests property & {:keys [seed max-size key] :or {max-size 200}}]
-  (let [meta-seed (or seed (System/currentTimeMillis))
-        seed-size-seq (gen/make-seed-size-seq meta-seed max-size)]
-    (if key
-      (check-once property key)
-      (loop [so-far 0
-             seed-size-seq seed-size-seq]
-        (if (== so-far num-tests)
-          (complete property num-tests meta-seed)
-          (let [[[seed size] & rest-seed-size-seq] seed-size-seq
-                result-map-rose (gen/call-gen property (gen/random seed) size)
-                result-map-rose (rose/fmap-indexed
-                                 (fn [path result-map]
-                                   (assoc result-map :key
-                                          [seed size path]))
-                                 result-map-rose)
-                result-map (rose/root result-map-rose)
-                result (:result result-map)
-                args (:args result-map)]
-            (if (not-falsey-or-exception? result)
-              (do
-                (ct/report-trial property so-far num-tests)
-                (recur (inc so-far) rest-seed-size-seq))
-              (failure property
-                       result-map-rose
-                       so-far
-                       size))))))))
+  [num-tests property & {:keys [seed max-size] :or {max-size 200}}]
+  (let [seed (or seed (System/currentTimeMillis))
+        key-seq (gen/make-key-seq seed max-size)]
+    (loop [so-far 0, key-seq key-seq]
+      (if (== so-far num-tests)
+        (complete property num-tests seed)
+        (let [[key & keys] key-seq
+              result-map-rose (gen/call-key-with-meta
+                               property
+                               key)
+              result-map (rose/root result-map-rose)
+              result (:result result-map)
+              args (:args result-map)]
+          (if (not-falsey-or-exception? result)
+            (do
+              (ct/report-trial property so-far num-tests)
+              (recur (inc so-far) keys))
+            (failure property
+                     result-map-rose
+                     so-far
+                     (second key))))))))
 
 (defn- smallest-shrink
   [total-nodes-visited depth smallest]
