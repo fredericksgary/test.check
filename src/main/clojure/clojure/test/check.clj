@@ -103,7 +103,9 @@
             ;; seen now and then look at the right-siblings
             ;; children
             (do
-              (print \X) (flush)
+              (print \newline)
+              (println "Smaller:" (-> head rose/root meta :key))
+              (flush)
               (let [children (rose/children head)]
                 (if (empty? children)
                   (recur tail (rose/root head) (inc total-nodes-visited) depth)
