@@ -42,6 +42,9 @@
               result-map-rose (gen/call-key-with-meta
                                property
                                key)
+              result-map-rose (rose/fmap
+                               #(update-in % [:result] deref)
+                               result-map-rose)
               result-map (rose/root result-map-rose)
               result (:result result-map)
               args (:args result-map)]
@@ -59,7 +62,7 @@
   {:total-nodes-visited total-nodes-visited
    :depth depth
    :result (:result smallest)
-   :key (:key smallest)
+   :key (:key (meta smallest))
    :smallest (:args smallest)})
 
 (defonce current-shrink (atom nil))
@@ -111,12 +114,22 @@
   (let [root (rose/root failing-rose-tree)
         result (:result root)
         failing-args (:args root)]
-    (println "test.check test failed!" {:result result :key (:key root)})
+    (println "test.check test failed!" {:result result :key (:key (meta root))})
     (ct/report-failure property result trial-number failing-args)
 
     {:result result
-     :key (:key root)
+     :key (:key (meta root))
      :failing-size size
      :num-tests (inc trial-number)
      :fail (vec failing-args)
      :shrunk (shrink-loop failing-rose-tree)}))
+
+;;
+;; Key-backed extra functionality
+;;
+
+(defn retry
+  "First arg can be a property or a defspec function."
+  [prop key]
+  (let [prop (-> prop meta :property (or prop))]
+    @(:result (rose/root (gen/call-key-with-meta prop key)))))
