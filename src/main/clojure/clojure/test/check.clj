@@ -36,7 +36,6 @@
               result-map-rose' (gen/call-key-with-meta
                                property
                                key)
-              _ (def dbg result-map-rose')
               result-map-rose (rose/fmap
                                #(update-in % [:result] deref)
                                result-map-rose')
