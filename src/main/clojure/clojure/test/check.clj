@@ -40,8 +40,7 @@
                                #(update-in % [:result] deref)
                                result-map-rose')
               result-map (rose/root result-map-rose)
-              result (:result result-map)
-              args (:args result-map)]
+              result (:result result-map)]
           (if (not-falsey-or-exception? result)
             (recur (inc so-far) keys)
             (assoc
