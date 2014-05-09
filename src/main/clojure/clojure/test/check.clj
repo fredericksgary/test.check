@@ -62,20 +62,19 @@
   passing example was found."
   [rose-tree]
   (let [shrinks-this-depth (rose/children rose-tree)]
-    (loop [nodes shrinks-this-depth
-           current-smallest (rose/root rose-tree)]
+    (loop [nodes shrinks-this-depth]
       (if (empty? nodes)
         {:dummy 'map}
         (let [[head & tail] nodes
               result (:result (rose/root head))]
           (if (not-falsey-or-exception? result)
             ;; this node passed the test, so now try testing its right-siblings
-            (recur tail current-smallest)
+            (recur tail)
             ;; this node failed the test, so check if it has children,
             ;; if so, traverse down them. If not, save this as the best example
             ;; seen now and then look at the right-siblings
             ;; children
             (let [children (rose/children head)]
               (if (empty? children)
-                (recur tail (rose/root head))
-                (recur children (rose/root head))))))))))
+                (recur tail)
+                (recur children)))))))))
