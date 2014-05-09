@@ -64,7 +64,6 @@
   (let [shrinks-this-depth (rose/children rose-tree)]
     (loop [nodes shrinks-this-depth
            current-smallest (rose/root rose-tree)
-           total-nodes-visited 0
            depth 0]
       (if (empty? nodes)
         {:dummy 'map}
@@ -72,12 +71,12 @@
               result (:result (rose/root head))]
           (if (not-falsey-or-exception? result)
             ;; this node passed the test, so now try testing its right-siblings
-            (recur tail current-smallest (inc total-nodes-visited) depth)
+            (recur tail current-smallest depth)
             ;; this node failed the test, so check if it has children,
             ;; if so, traverse down them. If not, save this as the best example
             ;; seen now and then look at the right-siblings
             ;; children
             (let [children (rose/children head)]
               (if (empty? children)
-                (recur tail (rose/root head) (inc total-nodes-visited) depth)
-                (recur children (rose/root head) (inc total-nodes-visited) (inc depth))))))))))
+                (recur tail (rose/root head) depth)
+                (recur children (rose/root head) (inc depth))))))))))
