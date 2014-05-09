@@ -13,11 +13,6 @@
 
 (declare shrink-loop failure)
 
-(defn not-falsey-or-exception?
-  "True if the value is not falsy or an exception"
-  [value]
-  (and value (not (instance? Throwable value))))
-
 (defn quick-check
   "Tests `property` `num-tests` times.
 
@@ -41,7 +36,7 @@
                                result-map-rose')
               result-map (rose/root result-map-rose)
               result (:result result-map)]
-          (if (not-falsey-or-exception? result)
+          (if result
             (recur (inc so-far) keys)
             (assoc
                 (shrink-loop result-map-rose)
@@ -65,7 +60,7 @@
       {:dummy 'map}
       (let [[head & tail] nodes
             result (:result (rose/root head))]
-        (if (not-falsey-or-exception? result)
+        (if result
           ;; this node passed the test, so now try testing its right-siblings
           (recur tail)
           ;; this node failed the test, so check if it has children,
