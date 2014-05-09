@@ -1,7 +1,6 @@
 
 (ns user
   (:require [clojure.pprint :refer [pprint pp]]
-            [clojure.test.check :refer [retry]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.rose-tree :as rose]
             [clojure.test.check.properties :as prop]
