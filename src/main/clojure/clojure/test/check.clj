@@ -9,15 +9,9 @@
 
 (ns clojure.test.check
   (:require [clojure.test.check.generators :as gen]
-            [clojure.test.check.clojure-test :as ct]
             [clojure.test.check.rose-tree :as rose]))
 
 (declare shrink-loop failure)
-
-(defn- complete
-  [property num-trials seed]
-  (ct/report-trial property num-trials num-trials)
-  {:result true :num-tests num-trials :seed seed})
 
 (defn not-falsey-or-exception?
   "True if the value is not falsy or an exception"
@@ -37,26 +31,26 @@
         key-seq (gen/make-key-seq seed max-size)]
     (loop [so-far 0, key-seq key-seq]
       (if (== so-far num-tests)
-        (complete property num-tests seed)
+        :oops-passed
         (let [[key & keys] key-seq
-              result-map-rose (gen/call-key-with-meta
+              result-map-rose' (gen/call-key-with-meta
                                property
                                key)
-              _ (def dbg result-map-rose)
+              _ (def dbg result-map-rose')
               result-map-rose (rose/fmap
                                #(update-in % [:result] deref)
-                               result-map-rose)
+                               result-map-rose')
               result-map (rose/root result-map-rose)
               result (:result result-map)
               args (:args result-map)]
           (if (not-falsey-or-exception? result)
-            (do
-              (ct/report-trial property so-far num-tests)
-              (recur (inc so-far) keys))
-            (failure property
-                     result-map-rose
-                     so-far
-                     (second key))))))))
+            (recur (inc so-far) keys)
+            (assoc
+                (failure property
+                         result-map-rose
+                         so-far
+                         (second key))
+              :result-map-rose result-map-rose')))))))
 
 (defn- smallest-shrink
   [total-nodes-visited depth smallest]
@@ -65,8 +59,6 @@
    :result (:result smallest)
    :key (:key (meta smallest))
    :smallest (:args smallest)})
-
-(defonce current-shrink (atom nil))
 
 (defn- shrink-loop
   "Shrinking a value produces a sequence of smaller values of the same type.
@@ -88,7 +80,6 @@
            total-nodes-visited 0
            depth 0]
       ;; instant feedback
-      (reset! current-shrink current-smallest)
 
       (if (empty? nodes)
         (smallest-shrink total-nodes-visited depth current-smallest)
@@ -96,22 +87,15 @@
               result (:result (rose/root head))]
           (if (not-falsey-or-exception? result)
             ;; this node passed the test, so now try testing its right-siblings
-            (do
-              (print \.) (flush)
-              (recur tail current-smallest (inc total-nodes-visited) depth))
+            (recur tail current-smallest (inc total-nodes-visited) depth)
             ;; this node failed the test, so check if it has children,
             ;; if so, traverse down them. If not, save this as the best example
             ;; seen now and then look at the right-siblings
             ;; children
-            (do
-              (print \newline)
-              (println "Smaller:" (-> head rose/root meta :key)
-                       (-> head rose/root :args pr-str))
-              (flush)
-              (let [children (rose/children head)]
-                (if (empty? children)
-                  (recur tail (rose/root head) (inc total-nodes-visited) depth)
-                  (recur children (rose/root head) (inc total-nodes-visited) (inc depth)))))))))))
+            (let [children (rose/children head)]
+              (if (empty? children)
+                (recur tail (rose/root head) (inc total-nodes-visited) depth)
+                (recur children (rose/root head) (inc total-nodes-visited) (inc depth))))))))))
 
 (defn- failure
   [property failing-rose-tree trial-number size]
@@ -119,7 +103,6 @@
         result (:result root)
         failing-args (:args root)]
     (println "test.check test failed!" {:result result :key (:key (meta root))})
-    (ct/report-failure property result trial-number failing-args)
 
     {:result result
      :key (:key (meta root))

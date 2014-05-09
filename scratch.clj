@@ -22,11 +22,10 @@
 
 (defn repro
   []
-  (clojure.test.check/quick-check 1000
-                                  the-prop
-                                  :seed 92392573
-                                  :max-size 4)
-  (let [via-quick-check clojure.test.check/dbg
+  (let [via-quick-check (:result-map-rose (clojure.test.check/quick-check 1000
+                                                                          the-prop
+                                                                          :seed 92392573
+                                                                          :max-size 4))
         direct (gen/call-key-with-meta the-prop [9174013331171401501 3 []])
         difference-point #(-> % rose/children (nth 3) rose/root :args)
         via-quick-check' (difference-point via-quick-check)
