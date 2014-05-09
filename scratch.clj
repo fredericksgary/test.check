@@ -120,18 +120,20 @@
 
 (defn repro
   []
-  (poop-3 1000 :seed 92392573 :max-size 4)
-  (let [via-quick-check clojure.test.check/dbg
-        direct (gen/call-key-with-meta (-> poop-3 meta :property)
-                                       [9174013331171401501 3 []])
-        difference-point #(-> % rose/children (nth 3) rose/root :args)
-        via-quick-check' (difference-point via-quick-check)
-        direct' (difference-point direct)]
-    {:via-quick-check via-quick-check'
-     :direct direct'
-     :same-args? (= (-> via-quick-check meta :args)
-                    (-> direct meta :args))
-     :reproduced? (not= via-quick-check' direct')}))
+  (let [prop (-> poop-3 meta :property)]
+    (clojure.test.check/quick-check 1000
+                                    prop
+                                    :seed 92392573
+                                    :max-size 4)
+    (let [via-quick-check clojure.test.check/dbg
+          direct (gen/call-key-with-meta prop [9174013331171401501 3 []])
+          difference-point #(-> % rose/children (nth 3) rose/root :args)
+          via-quick-check' (difference-point via-quick-check)
+          direct' (difference-point direct)]
+      {:via-quick-check via-quick-check'
+       :direct direct'
+       :same-args? (= (-> via-quick-check meta :args)
+                      (-> direct meta :args))
+       :reproduced? (not= via-quick-check' direct')})))
 
 (frequencies (repeatedly 100 repro))
-{{:via-quick-check [[[0 2 3] [2 3 3]]], :direct [[[0 2 3] [3 2 2]]], :same-args? true, :reproduced? true} 100}
