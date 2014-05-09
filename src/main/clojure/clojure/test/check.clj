@@ -51,14 +51,6 @@
                          (second key))
               :result-map-rose result-map-rose')))))))
 
-(defn- smallest-shrink
-  [total-nodes-visited depth smallest]
-  {:total-nodes-visited total-nodes-visited
-   :depth depth
-   :result (:result smallest)
-   :key (:key (meta smallest))
-   :smallest (:args smallest)})
-
 (defn- shrink-loop
   "Shrinking a value produces a sequence of smaller values of the same type.
   Each of these values can then be shrunk. Think of this as a tree. We do a
@@ -80,7 +72,7 @@
       ;; instant feedback
 
       (if (empty? nodes)
-        (smallest-shrink total-nodes-visited depth current-smallest)
+        {:dummy 'map}
         (let [[head & tail] nodes
               result (:result (rose/root head))]
           (if (not-falsey-or-exception? result)
@@ -106,13 +98,3 @@
      :num-tests (inc trial-number)
      :fail (vec failing-args)
      :shrunk (shrink-loop failing-rose-tree)}))
-
-;;
-;; Key-backed extra functionality
-;;
-
-(defn retry
-  "First arg can be a property or a defspec function."
-  [prop key]
-  (let [prop (-> prop meta :property (or prop))]
-    @(:result (rose/root (gen/call-key-with-meta prop key)))))
