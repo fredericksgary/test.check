@@ -42,6 +42,7 @@
               result-map-rose (gen/call-key-with-meta
                                property
                                key)
+              _ (def dbg result-map-rose)
               result-map-rose (rose/fmap
                                #(update-in % [:result] deref)
                                result-map-rose)
@@ -104,7 +105,8 @@
             ;; children
             (do
               (print \newline)
-              (println "Smaller:" (-> head rose/root meta :key))
+              (println "Smaller:" (-> head rose/root meta :key)
+                       (-> head rose/root :args pr-str))
               (flush)
               (let [children (rose/children head)]
                 (if (empty? children)
