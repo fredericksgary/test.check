@@ -72,7 +72,6 @@
   The value returned is the left-most failing example at the depth where a
   passing example was found."
   [rose-tree]
-  (println "Shrinking:")
   (let [shrinks-this-depth (rose/children rose-tree)]
     (loop [nodes shrinks-this-depth
            current-smallest (rose/root rose-tree)
@@ -101,8 +100,6 @@
   (let [root (rose/root failing-rose-tree)
         result (:result root)
         failing-args (:args root)]
-    (println "test.check test failed!" {:result result :key (:key (meta root))})
-
     {:result result
      :key (:key (meta root))
      :failing-size size
