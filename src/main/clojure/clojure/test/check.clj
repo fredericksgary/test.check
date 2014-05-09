@@ -28,19 +28,16 @@
       (if (== so-far num-tests)
         :oops-passed
         (let [[key & keys] key-seq
-              result-map-rose' (gen/call-key-with-meta
+              result-map-rose (gen/call-key-with-meta
                                property
                                key)
-              result-map-rose (rose/fmap
-                               #(update-in % [:result] deref)
-                               result-map-rose')
               result-map (rose/root result-map-rose)
               result (:result result-map)]
           (if result
             (recur (inc so-far) keys)
             (assoc
                 (shrink-loop result-map-rose)
-              :result-map-rose result-map-rose')))))))
+              :result-map-rose result-map-rose)))))))
 
 (defn- shrink-loop
   "Shrinking a value produces a sequence of smaller values of the same type.

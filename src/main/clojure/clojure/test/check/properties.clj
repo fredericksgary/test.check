@@ -13,7 +13,7 @@
 (defn- apply-gen
   [function]
   (fn [args]
-    (let [result (delay (apply function args))]
+    (let [result (apply function args)]
       {:result result
        :function function
        :args args})))
