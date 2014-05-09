@@ -45,10 +45,7 @@
           (if (not-falsey-or-exception? result)
             (recur (inc so-far) keys)
             (assoc
-                (failure property
-                         result-map-rose
-                         so-far
-                         (second key))
+                (shrink-loop result-map-rose)
               :result-map-rose result-map-rose')))))))
 
 (defn- shrink-loop
@@ -69,8 +66,6 @@
            current-smallest (rose/root rose-tree)
            total-nodes-visited 0
            depth 0]
-      ;; instant feedback
-
       (if (empty? nodes)
         {:dummy 'map}
         (let [[head & tail] nodes
@@ -86,15 +81,3 @@
               (if (empty? children)
                 (recur tail (rose/root head) (inc total-nodes-visited) depth)
                 (recur children (rose/root head) (inc total-nodes-visited) (inc depth))))))))))
-
-(defn- failure
-  [property failing-rose-tree trial-number size]
-  (let [root (rose/root failing-rose-tree)
-        result (:result root)
-        failing-args (:args root)]
-    {:result result
-     :key (:key (meta root))
-     :failing-size size
-     :num-tests (inc trial-number)
-     :fail (vec failing-args)
-     :shrunk (shrink-loop failing-rose-tree)}))
