@@ -1,7 +1,6 @@
 
 (ns user
   (:require [clojure.pprint :refer [pprint pp]]
-            [clojure.set :as sets]
             [clojure.test.check :refer [retry]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.rose-tree :as rose]
@@ -19,7 +18,7 @@
                                      (gen/fmap (fn [v2]
                                                  [v1 v2])
                                                (gen/vector gen/nat))))]
-    (not (sets/subset? #{1} (set (concat v1 v2))))))
+    (not (some #{1} (concat v1 v2)))))
 
 (defn repro
   []
