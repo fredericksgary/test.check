@@ -1,7 +1,6 @@
 
 (ns user
   (:require [clojure.pprint :refer [pprint pp]]
-            [clojure.test.check]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.rose-tree :as rose]
             [clojure.test.check.properties :as prop]
@@ -23,7 +22,11 @@
 (defn repro
   []
   (let [shrank-looped (doto (gen/call-key the-prop [9174013331171401501 3 []])
-                        (clojure.test.check/shrink-loop))
+                        ((fn [rose-tree]
+                           (dorun (for [rt (rose/children rose-tree)
+                                        rt2 (rose/children rt)
+                                        rt3 (rose/children rt2)]
+                                    42)))))
         direct (gen/call-key the-prop [9174013331171401501 3 []])
         difference-point #(-> % rose/children (nth 3) rose/root :args)
         shrank-looped' (difference-point shrank-looped)
@@ -35,4 +38,4 @@
      :reproduced? (not= shrank-looped' direct')}))
 
 (frequencies (repeatedly 100 repro))
-{{:shrank-looped [[[0 2 3] [2 3 3]]], :direct [[[0 2 3] [3 2 2]]], :same-args? true, :reproduced? true} 100}
+{{:shrank-looped [[[0 2 3] [2]]], :direct [[[0 2 3] [3 2 2]]], :same-args? true, :reproduced? true} 100}
