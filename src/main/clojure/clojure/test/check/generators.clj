@@ -98,8 +98,11 @@
     (gen-fmap rose/join
               (make-gen
                 (fn [rnd size]
-                  (rose/fmap #(call-gen % rnd size)
-                             (rose/fmap k rose)))))))
+                  ;; Creating a new instance of Random here allows the
+                  ;; shrink-tree to be deterministic
+                  (let [new-seed (.nextLong ^Random rnd)]
+                    (rose/fmap #(call-gen % (Random. new-seed) size)
+                               (rose/fmap k rose))))))))
 
 (defn bind
   "Create a new generator that passes the result of `gen` into function
