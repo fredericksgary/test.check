@@ -1,6 +1,7 @@
 
 (ns user
   (:require [clojure.pprint :refer [pprint pp]]
+            [clojure.test.check]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.rose-tree :as rose]
             [clojure.test.check.properties :as prop]
@@ -34,4 +35,3 @@
      :reproduced? (not= shrank-looped' direct')}))
 
 (frequencies (repeatedly 100 repro))
-{{:shrank-looped [[[0 2 3] [2 3 3]]], :direct [[[0 2 3] [3 2 2]]], :same-args? true, :reproduced? true} 100}
