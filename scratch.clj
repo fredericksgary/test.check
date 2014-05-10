@@ -2,7 +2,8 @@
 (ns user
   (:require [clojure.pprint :refer [pprint pp]]
             [clojure.test.check.generators :as gen]
-            [clojure.test.check.rose-tree :as rose]))
+            [clojure.test.check.rose-tree :as rose])
+  (:import java.util.Random))
 
 
 ;;
@@ -17,13 +18,14 @@
 
 (defn repro
   []
-  (let [shrank-looped (doto (gen/call-key the-gen [9174013331171401501 3 []])
+  (let [make-tree #(gen/call-gen the-gen (Random. 9174013331171401501) 3)
+        shrank-looped (doto (make-tree)
                         ((fn [rose-tree]
                            (dorun (for [rt (rose/children rose-tree)
                                         rt2 (rose/children rt)
                                         rt3 (rose/children rt2)]
                                     42)))))
-        direct (gen/call-key the-gen [9174013331171401501 3 []])
+        direct (make-tree)
         difference-point #(-> % rose/children (nth 3) rose/root)
         shrank-looped' (difference-point shrank-looped)
         direct' (difference-point direct)]
