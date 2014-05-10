@@ -34,4 +34,4 @@
      :reproduced? (not= shrank-looped' direct')}))
 
 (frequencies (repeatedly 100 repro))
-{{:shrank-looped ([[3] []] [[1] [0]] [[0 3] [1]] [[1 0] [3 1]] [[1 2] []]), :direct ([[3] []] [[1] [0]] [[0 3] [1 2]] [[1 0] [2 1]] [[1 2] []]), :reproduced? true} 100}
+{{:shrank-looped ([[3] []] [[1] []] [[0 3] []] [[1 0] []] [[1 2] []]), :direct ([[3] []] [[1] []] [[0 3] []] [[1 0] []] [[1 2] []]), :reproduced? false} 100}

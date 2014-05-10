@@ -99,8 +99,9 @@
     (gen-fmap rose/join
               (make-gen
                 (fn [rnd size]
-                  (rose/fmap #(call-gen % rnd size)
-                             (rose/fmap k rose)))))))
+                  (let [new-seed (.nextLong ^Random rnd)]
+                    (rose/fmap #(call-gen % (Random. new-seed) size)
+                               (rose/fmap k rose))))))))
 
 (defn bind
   "Create a new generator that passes the result of `gen` into function
