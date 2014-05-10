@@ -22,9 +22,9 @@
 
 (defn repro
   []
-  (let [shrank-looped (doto (gen/call-key-with-meta the-prop [9174013331171401501 3 []])
+  (let [shrank-looped (doto (gen/call-key the-prop [9174013331171401501 3 []])
                         (clojure.test.check/shrink-loop))
-        direct (gen/call-key-with-meta the-prop [9174013331171401501 3 []])
+        direct (gen/call-key the-prop [9174013331171401501 3 []])
         difference-point #(-> % rose/children (nth 3) rose/root :args)
         shrank-looped' (difference-point shrank-looped)
         direct' (difference-point direct)]
@@ -35,3 +35,4 @@
      :reproduced? (not= shrank-looped' direct')}))
 
 (frequencies (repeatedly 100 repro))
+{{:shrank-looped [[[0 2 3] [2 3 3]]], :direct [[[0 2 3] [3 2 2]]], :same-args? true, :reproduced? true} 100}

@@ -144,18 +144,6 @@
       (recur (nth (rose/children rose) idx) idxs)
       rose)))
 
-(defn call-key-with-meta
-  "Like call-key, but adds :key metadata to each element in the
-  resulting rose tree. Thus the elements of the rose tree must
-  be IObj."
-  [gen [seed size path :as key]]
-  (vary-meta
-   (rose/fmap-indexed
-    (fn [path' x]
-      (vary-meta x assoc :key [seed size (into path path')]))
-    (call-key gen key))
-   assoc :args [gen key]))
-
 (defn sample-seq
   "Return a sequence of realized values from `generator`."
   ([generator] (sample-seq generator 100))
