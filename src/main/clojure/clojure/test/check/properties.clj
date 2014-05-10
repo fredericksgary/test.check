@@ -13,7 +13,7 @@
 (defn- apply-gen
   [function]
   (fn [args]
-    (let [result (apply function args)]
+    (let [result (try (apply function args) (catch Throwable t t))]
       {:result result
        :function function
        :args args})))

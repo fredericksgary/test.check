@@ -45,17 +45,6 @@
   [f [root children]]
   [(f root) (map (partial fmap f) children)])
 
-(defn fmap-indexed
-  "Applies function `f` to all values in the tree, passing the
-  path to the current node as the first argument."
-  ([f rose] (fmap-indexed f rose []))
-  ([f [root children] path]
-     [(f path root)
-      (core/map-indexed
-       (fn [i rose]
-         (fmap-indexed f rose (conj path i)))
-       children)]))
-
 (defn bind
   "Takes a Rose tree (m) and a function (k) from
   values to Rose tree and returns a new Rose tree.

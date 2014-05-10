@@ -11,7 +11,7 @@
   (:import java.util.Random)
   (:refer-clojure :exclude [int vector list hash-map map keyword
                             char boolean byte bytes sequence
-                            not-empty for])
+                            not-empty])
   (:require [clojure.core :as core]
             [clojure.test.check.rose-tree :as rose]))
 
@@ -33,6 +33,7 @@
                                   (return-fn (conj xs y)))))))
           (return-fn [])
           ms))
+
 
 ;; Gen
 ;; (internal functions)
@@ -126,30 +127,18 @@
   ([] (Random.))
   ([seed] (Random. seed)))
 
-(defn make-key-seq
+(defn make-size-range-seq
   {:no-doc true}
-  [seed max-size]
-  (let [^Random rand (random seed)]
-    (clojure.core/map
-     clojure.core/vector
-     (repeatedly #(.nextLong rand))
-     (cycle (range 0 max-size))
-     (repeat []))))
-
-(defn call-key
-  [gen [seed size path]]
-  (loop [rose (call-gen gen (random seed) size)
-         path path]
-    (if-let [[idx & idxs] (seq path)]
-      (recur (nth (rose/children rose) idx) idxs)
-      rose)))
+  [max-size]
+  (cycle (range 0 max-size)))
 
 (defn sample-seq
   "Return a sequence of realized values from `generator`."
   ([generator] (sample-seq generator 100))
   ([generator max-size]
-     (core/for [key (make-key-seq (System/currentTimeMillis) max-size)]
-       (rose/root (call-key generator key)))))
+   (let [r (random)
+         size-seq (make-size-range-seq max-size)]
+     (core/map (comp rose/root (partial call-gen generator r)) size-seq))))
 
 (defn sample
   "Return a sequence of `num-samples` (default 10)
@@ -175,7 +164,7 @@
   [value]
   [value (core/map int-rose-tree (shrink-int value))])
 
-(defn rand-range
+(defn- rand-range
   [^Random rnd lower upper]
   {:pre [(<= lower upper)]}
   (let [factor (.nextDouble rnd)]
@@ -446,6 +435,26 @@
                  (choose 65 90)
                  (choose 97 122)])))
 
+(def char-alpha
+  "Generate alpha characters."
+  (fmap core/char
+        (one-of [(choose 65 90)
+                 (choose 97 122)])))
+
+(def char-symbol-special
+  "Generate non-alphanumeric characters that can be in a symbol."
+  (elements [\* \+ \! \- \_ \?]))
+
+(def char-keyword-rest
+  "Generate characters that can be the char following first of a keyword."
+  (frequency [[2 char-alpha-numeric]
+              [1 char-symbol-special]]))
+
+(def char-keyword-first
+  "Generate characters that can be the first char of a keyword."
+  (frequency [[2 char-alpha]
+              [1 char-symbol-special]]))
+
 (def string
   "Generate strings. May generate unprintable characters."
   (fmap clojure.string/join (vector char)))
@@ -460,9 +469,8 @@
 
 (def keyword
   "Generate keywords."
-  (->> string-alpha-numeric
-    (such-that #(not= "" %))
-    (fmap core/keyword)))
+  (->> (tuple char-keyword-first (vector char-keyword-rest))
+       (fmap (fn [[c cs]] (core/keyword (clojure.string/join (cons c cs)))))))
 
 (def ratio
   "Generates a `clojure.lang.Ratio`. Shrinks toward 0. Not all values generated
