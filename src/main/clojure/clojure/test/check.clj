@@ -11,35 +11,7 @@
   (:require [clojure.test.check.generators :as gen]
             [clojure.test.check.rose-tree :as rose]))
 
-(declare shrink-loop failure)
-
-(defn quick-check
-  "Tests `property` `num-tests` times.
-
-  Examples:
-
-      (def p (for-all [a gen/pos-int] (> (* a a) a)))
-      (quick-check 100 p)
-  "
-  [num-tests property & {:keys [seed max-size] :or {max-size 200}}]
-  (let [seed (or seed (System/currentTimeMillis))
-        key-seq (gen/make-key-seq seed max-size)]
-    (loop [so-far 0, key-seq key-seq]
-      (if (== so-far num-tests)
-        :oops-passed
-        (let [[key & keys] key-seq
-              result-map-rose (gen/call-key-with-meta
-                               property
-                               key)
-              result-map (rose/root result-map-rose)
-              result (:result result-map)]
-          (if result
-            (recur (inc so-far) keys)
-            (assoc
-                (shrink-loop result-map-rose)
-              :result-map-rose result-map-rose)))))))
-
-(defn- shrink-loop
+(defn shrink-loop
   "Shrinking a value produces a sequence of smaller values of the same type.
   Each of these values can then be shrunk. Think of this as a tree. We do a
   modified depth-first search of the tree:
