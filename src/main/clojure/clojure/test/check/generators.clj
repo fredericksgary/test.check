@@ -74,10 +74,9 @@
   [{h :gen} k]
   (make-gen
     (fn [rnd size]
-      (let [new-seed (.nextLong ^Random rnd)
-            inner (h rnd size)
+      (let [inner (h rnd size)
             {result :gen} (k inner)]
-        (result (Random. new-seed) size)))))
+        (result rnd size)))))
 
 ;; Exported generator functions
 ;; ---------------------------------------------------------------------------
