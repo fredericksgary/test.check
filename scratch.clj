@@ -2,33 +2,29 @@
 (ns user
   (:require [clojure.pprint :refer [pprint pp]]
             [clojure.test.check.generators :as gen]
-            [clojure.test.check.rose-tree :as rose]
-            [clojure.test.check.properties :as prop]
-            [clojure.test.check.clojure-test :refer [defspec]]))
+            [clojure.test.check.rose-tree :as rose]))
 
 
 ;;
 ;; Getting to the root of the matter?
 ;;
 
-(def the-prop
-  (prop/for-all [[v1 v2] (gen/bind (gen/vector gen/nat)
-                                   (fn [v1]
-                                     (gen/fmap (fn [v2]
-                                                 [v1 v2])
-                                               (gen/vector gen/nat))))]
-    (not (some #{1} (concat v1 v2)))))
+(def the-gen (gen/bind (gen/vector gen/nat)
+                       (fn [v1]
+                         (gen/fmap (fn [v2]
+                                     [v1 v2])
+                                   (gen/vector gen/nat)))))
 
 (defn repro
   []
-  (let [shrank-looped (doto (gen/call-key the-prop [9174013331171401501 3 []])
+  (let [shrank-looped (doto (gen/call-key the-gen [9174013331171401501 3 []])
                         ((fn [rose-tree]
                            (dorun (for [rt (rose/children rose-tree)
                                         rt2 (rose/children rt)
                                         rt3 (rose/children rt2)]
                                     42)))))
-        direct (gen/call-key the-prop [9174013331171401501 3 []])
-        difference-point #(-> % rose/children (nth 3) rose/root :args)
+        direct (gen/call-key the-gen [9174013331171401501 3 []])
+        difference-point #(-> % rose/children (nth 3) rose/root)
         shrank-looped' (difference-point shrank-looped)
         direct' (difference-point direct)]
     {:shrank-looped shrank-looped'
@@ -38,4 +34,4 @@
      :reproduced? (not= shrank-looped' direct')}))
 
 (frequencies (repeatedly 100 repro))
-{{:shrank-looped [[[0 2 3] [2]]], :direct [[[0 2 3] [3 2 2]]], :same-args? true, :reproduced? true} 100}
+{{:shrank-looped [[0 2 3] [2]], :direct [[0 2 3] [3 2 2]], :same-args? true, :reproduced? true} 100}
