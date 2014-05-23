@@ -188,7 +188,7 @@
   [value]
   [value (core/map int-rose-tree (shrink-int value))])
 
-(defn rand-range
+(defn- rand-range
   [^Random rnd lower upper]
   {:pre [(<= lower upper)]}
   (let [factor (.nextDouble rnd)]
@@ -276,25 +276,36 @@
     (gen-bind (choose 0 (dec (count v)))
               #(gen-pure (rose/fmap v %)))))
 
+(defn- such-that-helper
+  [max-tries pred gen tries-left rand-seed size]
+  (if (zero? tries-left)
+    (throw (ex-info (str "Couldn't satisfy such-that predicate after "
+                         max-tries " tries.") {}))
+    (let [value (call-gen gen rand-seed size)]
+      (if (pred (rose/root value))
+        (rose/filter pred value)
+        (recur max-tries pred gen (dec tries-left) rand-seed (inc size))))))
+
 (defn such-that
   "Create a generator that generates values from `gen` that satisfy predicate
-  `f`. Care is needed to ensure there is a high chance `gen` will satisfy `f`,
-  otherwise it will keep trying forever. Eventually we will add another
-  generator combinator that only tries N times before giving up. In the Haskell
-  version this is called `suchThatMaybe`.
+  `pred`. Care is needed to ensure there is a high chance `gen` will satisfy
+  `pred`. By default, `such-that` will try 10 times to generate a value that
+  satisfies the predicate. If no value passes this predicate after this number
+  of iterations, a runtime exception will be throw. You can pass an optional
+  third argument to change the number of times tried. Note also that each
+  time such-that retries, it will increase the size parameter.
 
   Examples:
 
       ;; generate non-empty vectors of integers
       (such-that not-empty (gen/vector gen/int))
   "
-  [pred gen]
-  (make-gen
-    (fn [rand-seed size]
-      (let [value (call-gen gen rand-seed size)]
-        (if (pred (rose/root value))
-          (rose/filter pred value)
-          (recur rand-seed (inc size)))))))
+  ([pred gen]
+   (such-that pred gen 10))
+  ([pred gen max-tries]
+   (make-gen
+     (fn [rand-seed size]
+       (such-that-helper max-tries pred gen max-tries rand-seed size)))))
 
 (def not-empty
   "Modifies a generator so that it doesn't generate empty collections.
@@ -460,6 +471,26 @@
                  (choose 65 90)
                  (choose 97 122)])))
 
+(def char-alpha
+  "Generate alpha characters."
+  (fmap core/char
+        (one-of [(choose 65 90)
+                 (choose 97 122)])))
+
+(def char-symbol-special
+  "Generate non-alphanumeric characters that can be in a symbol."
+  (elements [\* \+ \! \- \_ \?]))
+
+(def char-keyword-rest
+  "Generate characters that can be the char following first of a keyword."
+  (frequency [[2 char-alpha-numeric]
+              [1 char-symbol-special]]))
+
+(def char-keyword-first
+  "Generate characters that can be the first char of a keyword."
+  (frequency [[2 char-alpha]
+              [1 char-symbol-special]]))
+
 (def string
   "Generate strings. May generate unprintable characters."
   (fmap clojure.string/join (vector char)))
@@ -474,9 +505,8 @@
 
 (def keyword
   "Generate keywords."
-  (->> string-alpha-numeric
-    (such-that #(not= "" %))
-    (fmap core/keyword)))
+  (->> (tuple char-keyword-first (vector char-keyword-rest))
+       (fmap (fn [[c cs]] (core/keyword (clojure.string/join (cons c cs)))))))
 
 (def ratio
   "Generates a `clojure.lang.Ratio`. Shrinks toward 0. Not all values generated
