@@ -8,11 +8,11 @@
 ;   You must not remove this notice, or any other, from this software.
 
 (ns clojure.test.check.generators
-  (:import java.util.Random)
   (:refer-clojure :exclude [int vector list hash-map map keyword
                             char boolean byte bytes sequence
                             not-empty])
   (:require [clojure.core :as core]
+            [clojure.test.check.random :as random :refer [random]]
             [clojure.test.check.rose-tree :as rose]))
 
 ;; Generic helpers
@@ -74,9 +74,10 @@
   [{h :gen} k]
   (make-gen
     (fn [rnd size]
-      (let [inner (h rnd size)
+      (let [[r1 r2] (random/split rnd)
+            inner (h r1 size)
             {result :gen} (k inner)]
-        (result rnd size)))))
+        (result r2 size)))))
 
 ;; Exported generator functions
 ;; ---------------------------------------------------------------------------
@@ -122,11 +123,6 @@
 ;; Helpers
 ;; ---------------------------------------------------------------------------
 
-(defn random
-  {:no-doc true}
-  ([] (Random.))
-  ([seed] (Random. seed)))
-
 (defn make-size-range-seq
   {:no-doc true}
   [max-size]
@@ -137,8 +133,10 @@
   ([generator] (sample-seq generator 100))
   ([generator max-size]
    (let [r (random)
+         rs (->> [nil r] (iterate (fn [[r1 r2]] (random/split r2))) (core/map first) (rest))
          size-seq (make-size-range-seq max-size)]
-     (core/map (comp rose/root (partial call-gen generator r)) size-seq))))
+     (for [[r size] (core/map core/list rs size-seq)]
+       (rose/root (call-gen generator r size))))))
 
 (defn sample
   "Return a sequence of `num-samples` (default 10)
@@ -165,9 +163,9 @@
   [value (core/map int-rose-tree (shrink-int value))])
 
 (defn- rand-range
-  [^Random rnd lower upper]
+  [rnd lower upper]
   {:pre [(<= lower upper)]}
-  (let [factor (.nextDouble rnd)]
+  (let [[factor] (random/double rnd)]
     (long (Math/floor (+ lower (- (* factor (+ 1.0 upper))
                                   (* factor lower)))))))
 
@@ -196,7 +194,7 @@
   `min-range` to `max-range`, inclusive."
   [lower upper]
   (make-gen
-    (fn [^Random rnd _size]
+    (fn [rnd _size]
       (let [value (rand-range rnd lower upper)]
         (rose/filter
           #(and (>= % lower) (<= % upper))
@@ -257,10 +255,11 @@
   (if (zero? tries-left)
     (throw (ex-info (str "Couldn't satisfy such-that predicate after "
                          max-tries " tries.") {}))
-    (let [value (call-gen gen rand-seed size)]
+    (let [[r1 r2] (random/split rand-seed)
+          value (call-gen gen r1 size)]
       (if (pred (rose/root value))
         (rose/filter pred value)
-        (recur max-tries pred gen (dec tries-left) rand-seed (inc size))))))
+        (recur max-tries pred gen (dec tries-left) r2 (inc size))))))
 
 (defn such-that
   "Create a generator that generates values from `gen` that satisfy predicate
