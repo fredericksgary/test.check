@@ -123,7 +123,8 @@
   (let [root (rose/root failing-rose-tree)
         result (:result root)
         failing-args (:args root)]
-    (println "test.check test failed!" {:result result :key (:key (meta root))})
+    (printf "test.check test failed! (%s)\n" (print-str property))
+    (prn {:result result :key (:key (meta root))})
     (ct/report-failure property result trial-number failing-args)
 
     {:result result

@@ -19,6 +19,13 @@
 
 (def ^:dynamic *default-test-count* 100)
 
+(defmethod print-method ::property
+  [p ^java.io.Writer pw]
+  (let [prop-name (::name (meta p))]
+    (.write pw "#<Property ")
+    (print-method prop-name pw)
+    (.write pw ">")))
+
 (defmacro defspec
   "Defines a new clojure.test test var that uses `quick-check` to verify
   [property] with the given [args] (should be a sequence of generators),
@@ -31,7 +38,10 @@
 
   ([name default-times property]
    `(do (require 'clojure.test.check)
-        (let [property# ~property]
+        (let [property# (vary-meta ~property assoc
+                                   :type ::property
+                                   ::name (quote ~(symbol (clojure.core/name (.getName *ns*))
+                                                          (clojure.core/name name))))]
           ;; consider my shame for introducing a cyclical dependency like this...
           ;; Don't think we'll know what the solution is until clojure.test.check
           ;; integration with another test framework is attempted.
