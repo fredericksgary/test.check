@@ -140,5 +140,8 @@
 (defn retry
   "First arg can be a property or a defspec function."
   [prop key]
-  (let [prop (-> prop meta :property (or prop))]
-    @(:result (rose/root (gen/call-key-with-meta prop key)))))
+  (let [prop (-> prop meta :property (or prop))
+        {:keys [result args]} (rose/root (gen/call-key-with-meta prop key))]
+    (if (not-falsey-or-exception? @result)
+      {:result @result}
+      {:fail args, :result @result})))
