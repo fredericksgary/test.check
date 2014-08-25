@@ -146,3 +146,12 @@
     (if (not-falsey-or-exception? @result)
       {:result @result}
       {:fail args, :result @result})))
+
+(defn resume-shrink
+  "First arg can be a property or a defspec function."
+  [prop key]
+  (let [prop (-> prop meta :property (or prop))
+        result-map-rose (rose/fmap
+                         #(update-in % [:result] deref)
+                         (gen/call-key-with-meta prop key))]
+    (shrink-loop result-map-rose)))
