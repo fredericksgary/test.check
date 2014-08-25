@@ -11,7 +11,7 @@
   (:import java.util.Random)
   (:refer-clojure :exclude [int vector list hash-map map keyword
                             char boolean byte bytes sequence
-                            not-empty for])
+                            not-empty for symbol namespace])
   (:require [clojure.core :as core]
             [clojure.test.check.rose-tree :as rose]))
 
@@ -477,16 +477,16 @@
         (one-of [(choose 65 90)
                  (choose 97 122)])))
 
-(def char-symbol-special
+(def ^{:private true} char-symbol-special
   "Generate non-alphanumeric characters that can be in a symbol."
   (elements [\* \+ \! \- \_ \?]))
 
-(def char-keyword-rest
+(def ^{:private true} char-keyword-rest
   "Generate characters that can be the char following first of a keyword."
   (frequency [[2 char-alpha-numeric]
               [1 char-symbol-special]]))
 
-(def char-keyword-first
+(def ^{:private true} char-keyword-first
   "Generate characters that can be the first char of a keyword."
   (frequency [[2 char-alpha]
               [1 char-symbol-special]]))
@@ -503,10 +503,78 @@
   "Generate alpha-numeric strings."
   (fmap clojure.string/join (vector char-alpha-numeric)))
 
-(def keyword
-  "Generate keywords."
+(defn- +-or---digit?
+  "Returns true if c is \\+ or \\- and d is non-nil and a digit.
+
+  Symbols that start with +3 or -2 are not readable because they look
+  like numbers."
+  [c ^Character d]
+  (core/boolean (and d
+                     (or (= \+ c)
+                         (= \- c))
+                     (Character/isDigit d))))
+
+(def ^{:private true} namespace-segment
+  "Generate the segment of a namespace."
   (->> (tuple char-keyword-first (vector char-keyword-rest))
-       (fmap (fn [[c cs]] (core/keyword (clojure.string/join (cons c cs)))))))
+       (such-that (fn [[c [d]]] (not (+-or---digit? c d))))
+       (fmap (fn [[c cs]] (clojure.string/join (cons c cs))))))
+
+(def ^{:private true} namespace
+  "Generate a namespace (or nil for no namespace)."
+  (->> (vector namespace-segment)
+       (fmap (fn [v] (when (seq v)
+                       (clojure.string/join "." v))))))
+
+(def ^{:private true} keyword-segment-rest
+  "Generate segments of a keyword (between \\:)"
+  (->> (tuple char-keyword-rest (vector char-keyword-rest))
+       (fmap (fn [[c cs]] (clojure.string/join (cons c cs))))))
+
+(def ^{:private true} keyword-segment-first
+  "Generate segments of a keyword that can be first (between \\:)"
+  (->> (tuple char-keyword-first (vector char-keyword-rest))
+       (fmap (fn [[c cs]] (clojure.string/join (cons c cs))))))
+
+(def keyword
+  "Generate keywords without namespaces."
+  (->> (tuple keyword-segment-first (vector keyword-segment-rest))
+       (fmap (fn [[c cs]]
+               (core/keyword (clojure.string/join ":" (cons c cs)))))))
+
+(def
+  ^{:added "0.5.9"}
+  keyword-ns
+  "Generate keywords with optional namespaces."
+  (->> (tuple namespace char-keyword-first (vector char-keyword-rest))
+       (fmap (fn [[ns c cs]]
+               (core/keyword ns (clojure.string/join (cons c cs)))))))
+
+(def ^{:private true} char-symbol-first
+  (frequency [[10 char-alpha]
+              [5 char-symbol-special]
+              [1 (return \.)]]))
+
+(def ^{:private true} char-symbol-rest
+  (frequency [[10 char-alpha-numeric]
+              [5 char-symbol-special]
+              [1 (return \.)]]))
+
+(def symbol
+  "Generate symbols without namespaces."
+  (frequency [[100 (->> (tuple char-symbol-first (vector char-symbol-rest))
+                        (such-that (fn [[c [d]]] (not (+-or---digit? c d))))
+                        (fmap (fn [[c cs]] (core/symbol (clojure.string/join (cons c cs))))))]
+              [1 (return '/)]]))
+
+(def
+  ^{:added "0.5.9"}
+  symbol-ns
+  "Generate symbols with optional namespaces."
+  (frequency [[100 (->> (tuple namespace char-symbol-first (vector char-symbol-rest))
+                        (such-that (fn [[_ c [d]]] (not (+-or---digit? c d))))
+                        (fmap (fn [[ns c cs]] (core/symbol ns (clojure.string/join (cons c cs))))))]
+              [1 (return '/)]]))
 
 (def ratio
   "Generates a `clojure.lang.Ratio`. Shrinks toward 0. Not all values generated
@@ -517,10 +585,10 @@
            (such-that (complement zero?) int))))
 
 (def simple-type
-  (one-of [int char string ratio boolean keyword]))
+  (one-of [int char string ratio boolean keyword keyword-ns symbol symbol-ns]))
 
 (def simple-type-printable
-  (one-of [int char-ascii string-ascii ratio boolean keyword]))
+  (one-of [int char-ascii string-ascii ratio boolean keyword keyword-ns symbol symbol-ns]))
 
 (defn container-type
   [inner-type]
@@ -528,20 +596,45 @@
            (list inner-type)
            (map inner-type inner-type)]))
 
-(defn sized-container
-  {:no-doc true}
-  [inner-type]
-  (fn [size]
-    (if (zero? size)
-      inner-type
-      (one-of [inner-type
-               (container-type (resize (quot size 2) (sized (sized-container inner-type))))]))))
+(defn recursive-helper
+  [container-gen-fn scalar-gen scalar-size children-size height]
+  (if (zero? height)
+    (resize scalar-size scalar-gen)
+    (resize children-size
+            (container-gen-fn
+              (recursive-helper
+                container-gen-fn scalar-gen
+                scalar-size children-size (dec height))))))
+
+(defn
+  ^{:added "0.5.9"}
+  recursive-gen
+  "This is a helper for writing recursive (tree-shaped) generators. The first
+  argument should be a function that takes a generator as an argument, and
+  produces another generator that 'contains' that generator. The vector function
+  in this namespace is a simple example. The second argument is a scalar
+  generator, like boolean. For example, to produce a tree of booleans:
+
+    (gen/recursive-gen gen/vector gen/boolean)
+
+  Vectors or maps either recurring or containing booleans or integers:
+
+    (gen/recursive-gen (fn [inner] (gen/one-of [(gen/vector inner)
+                                                (gen/map inner inner)]))
+                       (gen/one-of [gen/boolean gen/int]))
+  "
+  [container-gen-fn scalar-gen]
+  (sized (fn [size]
+           (bind (choose 1 5)
+                 (fn [height] (let [children-size (Math/pow size (/ 1 height))]
+                                (recursive-helper container-gen-fn scalar-gen size
+                                                  children-size height)))))))
 
 (def any
   "A recursive generator that will generate many different, often nested, values"
-  (sized (sized-container simple-type)))
+  (recursive-gen container-type simple-type))
 
 (def any-printable
   "Like any, but avoids characters that the shell will interpret as actions,
   like 7 and 14 (bell and alternate character set command)"
-  (sized (sized-container simple-type-printable)))
+  (recursive-gen container-type simple-type-printable))
