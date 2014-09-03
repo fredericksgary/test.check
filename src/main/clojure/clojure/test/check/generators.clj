@@ -11,7 +11,7 @@
   (:import java.util.Random)
   (:refer-clojure :exclude [int vector list hash-map map keyword
                             char boolean byte bytes sequence
-                            not-empty for symbol namespace])
+                            not-empty symbol namespace])
   (:require [clojure.core :as core]
             [clojure.test.check.rose-tree :as rose]))
 
@@ -161,7 +161,7 @@
   "Return a sequence of realized values from `generator`."
   ([generator] (sample-seq generator 100))
   ([generator max-size]
-     (core/for [key (make-key-seq (System/currentTimeMillis) max-size)]
+     (for [key (make-key-seq (System/currentTimeMillis) max-size)]
        (rose/root (call-key generator key)))))
 
 (defn sample
