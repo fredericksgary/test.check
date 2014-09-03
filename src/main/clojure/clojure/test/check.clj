@@ -72,8 +72,6 @@
    :key (:key (meta smallest))
    :smallest (:args smallest)})
 
-(defonce current-shrink (atom nil))
-
 (defn- shrink-loop
   "Shrinking a value produces a sequence of smaller values of the same type.
   Each of these values can then be shrunk. Think of this as a tree. We do a
@@ -93,8 +91,6 @@
            current-smallest (rose/root rose-tree)
            total-nodes-visited 0
            depth 0]
-      ;; instant feedback
-      (reset! current-shrink current-smallest)
 
       (if (empty? nodes)
         (smallest-shrink total-nodes-visited depth current-smallest)
