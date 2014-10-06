@@ -14,6 +14,11 @@
 
 (declare shrink-loop failure)
 
+(defn- check-interrupts
+  [msg]
+  (when (Thread/interrupted)
+    (throw (InterruptedException. msg))))
+
 (defn- complete
   [property num-trials seed]
   (ct/report-trial property num-trials num-trials)
@@ -43,6 +48,7 @@
   (let [seed (or seed (System/currentTimeMillis))
         key-seq (gen/make-key-seq seed max-size)]
     (loop [so-far 0, key-seq key-seq]
+      (check-interrupts "quick-check interrupted!")
       (if (== so-far num-tests)
         (complete property num-tests seed)
         (let [[key & keys] key-seq
@@ -91,6 +97,8 @@
            current-smallest (rose/root rose-tree)
            total-nodes-visited 0
            depth 0]
+
+      (check-interrupts "Shrink interrupted!")
 
       (if (empty? nodes)
         (smallest-shrink total-nodes-visited depth current-smallest)
