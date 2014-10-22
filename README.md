@@ -25,7 +25,7 @@ higher-level tests.
 ## What is a key?
 
 A key is a triple `[seed size shrink-path]` that can be used to
-reproduce any test run during
+reproduce any individual test run caused by normal use.
 
 ## User-invisible differences
 
