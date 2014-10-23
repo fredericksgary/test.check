@@ -73,7 +73,7 @@
 (defn- smallest-shrink
   [total-nodes-visited depth smallest]
   {:total-nodes-visited total-nodes-visited
-   :depth depth
+   :depth (-> smallest meta :key (get 2) count)
    :result (:result smallest)
    :key (:key (meta smallest))
    :smallest (:args smallest)})
@@ -101,7 +101,7 @@
       (check-interrupts "Shrink interrupted!")
 
       (if (empty? nodes)
-        (smallest-shrink total-nodes-visited depth current-smallest)
+        (smallest-shrink total-nodes-visited current-smallest)
         (let [[head & tail] nodes
               result (:result (rose/root head))]
           (if (not-falsey-or-exception? result)
@@ -159,3 +159,113 @@
                          #(update-in % [:result] deref)
                          (gen/call-key-with-meta prop key))]
     (shrink-loop result-map-rose)))
+
+;;
+;; Hyper Shrinking!
+;;
+
+(defn ^:private quiet-nth
+  "Like nth but returns nil if i is out of range."
+  [coll i]
+  (cond (zero? i) (first coll)
+        (empty? coll) nil
+        :else (recur (rest coll) (dec i))))
+
+(defn- hyper-shrink-loop
+  [rose-tree]
+  (println "Shrinking:")
+  (letfn [(vanilla [nodes current-smallest total-nodes-visited]
+            (println "vanilla")
+            (if (empty? nodes)
+              (smallest-shrink total-nodes-visited current-smallest)
+              (let [[head & tail] nodes
+                    result (force (:result (rose/root head)))]
+                (if (not-falsey-or-exception? result)
+                  ;; this node passed the test, so now try testing its right-siblings
+                  (do
+                    (print \.) (flush)
+                    (recur tail current-smallest (inc total-nodes-visited)))
+                  ;; this node failed the test, so check if it has children,
+                  ;; if so, traverse down them. If not, save this as the best example
+                  ;; seen now and then look at the right-siblings
+                  ;; children
+                  (do
+                    (print \newline)
+                    (println "Smaller:" (-> head rose/root meta :key))
+                    (flush)
+                    (let [children (rose/children head)]
+                      (if (empty? children)
+                        (recur tail (rose/root head) (inc total-nodes-visited))
+                        #(hyper-start head (inc total-nodes-visited)))))))))
+          (hyper-start [rose-tree total-nodes-visited]
+            (println "hyper-start")
+            (let [last-index (-> rose-tree rose/root meta :key (get 2) peek)]
+              #(hyper-unbounded rose-tree
+                                total-nodes-visited
+                                last-index
+                                1)))
+          (hyper-unbounded [rose-tree total-nodes-visited i next-jump]
+            (println "hyper-unbounded" i next-jump)
+            (let [rose-tree-ghost (-> rose-tree rose/root meta ::reproducer)
+                  rose-tree' (nth (iterate #(quiet-nth (rose/children %) i) rose-tree) next-jump)]
+              (if (and rose-tree'
+                       (-> rose-tree' rose/root :result force
+                           not-falsey-or-exception? not))
+                (do
+                  (println "\nSmaller:" (-> rose-tree' rose/root meta :key))
+                  (recur rose-tree' (inc total-nodes-visited) i (* 2 next-jump)))
+                (do
+                  (print \.) (flush)
+                  #(hyper-bounded (rose-tree-ghost) (inc total-nodes-visited) i next-jump)))))
+          (hyper-bounded [rose-tree total-nodes-visited i too-high]
+            (println "hyper-bounded" i too-high)
+            (if (<= too-high 1)
+              #(vanilla (rose/children rose-tree)
+                        (rose/root rose-tree)
+                        total-nodes-visited)
+              ;; binary search
+              (let [jump (quot too-high 2)
+                    rose-tree-ghost (-> rose-tree rose/root meta ::reproducer)
+                    rose-tree' (nth (iterate #(quiet-nth (rose/children %) i) rose-tree) jump)]
+                (if (and rose-tree'
+                         (-> rose-tree' rose/root :result force
+                             not-falsey-or-exception? not))
+                  (do
+                    (println "\nSmaller:" (-> rose-tree' rose/root meta :key))
+                    (recur rose-tree' (inc total-nodes-visited) i (- too-high jump)))
+                  (do
+                    (print \.) (flush)
+                    (recur (rose-tree-ghost) (inc total-nodes-visited) i jump))))))]
+    (trampoline vanilla (rose/children rose-tree) (rose/root rose-tree) 0)))
+
+(declare reproducibilize)
+
+(defn reproduce
+  [prop key]
+  (println "REPRODUCING")
+  (reproducibilize (gen/call-key-with-meta prop key)))
+
+(defn reproducibilize
+  [rose-tree prop]
+  (rose/fmap (fn [x]
+               (let [{:keys [key]} (meta x)]
+                 (vary-meta x assoc ::reproducer (partial reproduce prop key))))
+             rose-tree))
+
+(defn debuggify
+  [rose-tree]
+  (rose/fmap (fn [m]
+               (let [k (-> m meta :key)]
+                 (update-in m [:result] (fn [d]
+                                          (delay (println "  Running test with" k)
+                                                 (force d))))))
+             rose-tree))
+
+(defn hyper-shrink
+  "Like resume-shrink, but uses an aggressive shrinking algorithm that
+  tries to take advantage of shrinks that take many consecutive steps
+  down the same index'd child."
+  [prop key]
+  (let [prop (-> prop meta :property (or prop))
+        rose-tree (reproducibilize (gen/call-key-with-meta prop key) prop)]
+    (hyper-shrink-loop (debuggify rose-tree))))
