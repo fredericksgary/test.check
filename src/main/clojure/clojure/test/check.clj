@@ -206,17 +206,20 @@
                                 1)))
           (hyper-unbounded [rose-tree total-nodes-visited i next-jump]
             (println "hyper-unbounded" i next-jump)
-            (let [rose-tree-ghost (-> rose-tree rose/root meta ::reproducer)
-                  rose-tree' (nth (iterate #(quiet-nth (rose/children %) i) rose-tree) next-jump)]
-              (if (and rose-tree'
-                       (-> rose-tree' rose/root :result force
-                           not-falsey-or-exception? not))
-                (do
-                  (println "\nSmaller:" (-> rose-tree' rose/root meta :key))
-                  (recur rose-tree' (inc total-nodes-visited) i (* 2 next-jump)))
-                (do
-                  (print \.) (flush)
-                  #(hyper-bounded (rose-tree-ghost) (inc total-nodes-visited) i next-jump)))))
+            (hyper-unbounded* (-> rose-tree rose/root meta ::reproducer)
+                              (nth (iterate #(quiet-nth (rose/children %) i) rose-tree) next-jump)
+                              total-nodes-visited i next-jump))
+          (hyper-unbounded* [rose-tree-ghost rose-tree' total-nodes-visited i next-jump]
+            (if (and rose-tree'
+                     (-> rose-tree' rose/root :result force
+                         not-falsey-or-exception? not))
+              (do
+                (println "\nSmaller:" (-> rose-tree' rose/root meta :key))
+                #(hyper-unbounded rose-tree' (inc total-nodes-visited) i (* 2 next-jump)))
+              (do
+                (print \.) (flush)
+                #(hyper-bounded (rose-tree-ghost) (inc total-nodes-visited) i next-jump))) )
+
           (hyper-bounded [rose-tree total-nodes-visited i too-high]
             (println "hyper-bounded" i too-high)
             (if (<= too-high 1)
