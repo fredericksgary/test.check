@@ -11,7 +11,7 @@
   (:import java.util.Random)
   (:refer-clojure :exclude [int vector list hash-map map keyword
                             char boolean byte bytes sequence
-                            not-empty symbol namespace])
+                            shuffle not-empty symbol namespace])
   (:require [clojure.core :as core]
             [clojure.test.check.rose-tree :as rose]))
 
@@ -82,6 +82,7 @@
 
 (defn fmap
   [f gen]
+  (assert (generator? gen) "Second arg to fmap must be a generator")
   (gen-fmap (partial rose/fmap f) gen))
 
 
@@ -119,6 +120,7 @@
 
   "
   [generator k]
+  (assert (generator? generator) "First arg to bind must be a generator")
   (gen-bind generator (bind-helper k)))
 
 ;; Helpers
@@ -170,6 +172,7 @@
   ([generator]
    (sample generator 10))
   ([generator num-samples]
+   (assert (generator? generator) "First arg to sample must be a generator")
    (take num-samples (sample-seq generator))))
 
 
@@ -210,10 +213,12 @@
 
 (defn resize
   "Create a new generator with `size` always bound to `n`."
-  [n {gen :gen}]
-  (make-gen
-    (fn [rnd _size]
-      (gen rnd n))))
+  [n generator]
+  (assert (generator? generator) "Second arg to resize must be a generator")
+  (let [{:keys [gen]} generator]
+    (make-gen
+     (fn [rnd _size]
+       (gen rnd n)))))
 
 (defn choose
   "Create a generator that returns numbers in the range
@@ -237,6 +242,8 @@
 
   "
   [generators]
+  (assert (every? generator? generators)
+          "Arg to one-of must be a collection of generators")
   (bind (choose 0 (dec (count generators)))
         (partial nth generators)))
 
@@ -257,6 +264,9 @@
       (gen/frequency [[5 gen/int] [3 (gen/vector gen/int)] [2 gen/boolean]])
   "
   [pairs]
+  (assert (every? (fn [[x g]] (and (number? x) (generator? g)))
+                  pairs)
+          "Arg to frequency must be a list of [num generator] pairs")
   (let [total (apply + (core/map first pairs))]
     (gen-bind (choose 1 total)
               #(pick pairs (rose/root %)))))
@@ -269,9 +279,7 @@
       (gen/elements [:foo :bar :baz])
   "
   [coll]
-  (when (empty? coll)
-    (throw (ex-info "clojure.test.check.generators/elements called with empty collection!"
-                    {:collection coll})))
+  (assert (seq coll) "elements cannot be called with an empty collection")
   (let [v (vec coll)]
     (gen-bind (choose 0 (dec (count v)))
               #(gen-pure (rose/fmap v %)))))
@@ -303,11 +311,12 @@
   ([pred gen]
    (such-that pred gen 10))
   ([pred gen max-tries]
+   (assert (generator? gen) "Second arg to such-that must be a generator")
    (make-gen
      (fn [rand-seed size]
        (such-that-helper max-tries pred gen max-tries rand-seed size)))))
 
-(def not-empty
+(defn not-empty
   "Modifies a generator so that it doesn't generate empty collections.
 
   Examples:
@@ -315,13 +324,16 @@
       ;; generate a vector of booleans, but never the empty vector
       (gen/not-empty (gen/vector gen/boolean))
   "
-  (partial such-that core/not-empty))
+  [gen]
+  (assert (generator? gen) "Arg to not-empty must be a generator")
+  (such-that core/not-empty gen))
 
 (defn no-shrink
   "Create a new generator that is just like `gen`, except does not shrink
   at all. This can be useful when shrinking is taking a long time or is not
   applicable to the domain."
   [gen]
+  (assert (generator? gen) "Arg to no-shrink must be a generator")
   (gen-bind gen
             (fn [[root _children]]
               (gen-pure
@@ -331,6 +343,7 @@
   "Create a new generator like `gen`, but will consider nodes for shrinking
   even if their parent passes the test (up to one additional level)."
   [gen]
+  (assert (generator? gen) "Arg to shrink-2 must be a generator")
   (gen-bind gen (comp gen-pure rose/collapse)))
 
 (def boolean
@@ -350,6 +363,8 @@
       ;; =>  [3 true] [-4 false] [9 true]))
   "
   [& generators]
+  (assert (every? generator? generators)
+          "Args to tuple must be generators")
   (gen-bind (sequence gen-bind gen-pure generators)
             (fn [roses]
               (gen-pure (rose/zip core/vector roses)))))
@@ -386,6 +401,7 @@
   "Create a generator whose elements are chosen from `gen`. The count of the
   vector will be bounded by the `size` generator parameter."
   ([generator]
+   (assert (generator? generator) "Arg to vector must be a generator")
    (gen-bind
      (sized #(choose 0 %))
      (fn [num-elements-rose]
@@ -396,8 +412,10 @@
                    (gen-pure (rose/shrink core/vector
                                           roses)))))))
   ([generator num-elements]
+   (assert (generator? generator) "First arg to vector must be a generator")
    (apply tuple (repeat num-elements generator)))
   ([generator min-elements max-elements]
+   (assert (generator? generator) "First arg to vector must be a generator")
    (gen-bind
      (choose min-elements max-elements)
      (fn [num-elements-rose]
@@ -416,6 +434,7 @@
 (defn list
   "Like `vector`, but generators lists."
   [generator]
+  (assert (generator? generator) "First arg to list must be a generator")
   (gen-bind (sized #(choose 0 %))
             (fn [num-elements-rose]
               (gen-bind (sequence gen-bind gen-pure
@@ -424,6 +443,25 @@
                         (fn [roses]
                           (gen-pure (rose/shrink core/list
                                                  roses)))))))
+
+(defn- swap
+  [coll [i1 i2]]
+  (assoc coll i2 (coll i1) i1 (coll i2)))
+
+(defn
+  ^{:added "0.6.0"}
+  shuffle
+  "Create a generator that generates random permutations of `coll`. Shrinks
+  toward the original collection: `coll`."
+  [coll]
+  (let [index-gen (choose 0 (dec (count coll)))]
+    (fmap (partial reduce swap coll)
+          ;; a vector of swap instructions, with count between
+          ;; zero and 2 * count. This means that the average number
+          ;; of instructions is count, which should provide sufficient
+          ;; (though perhaps not 'perfect') shuffling. This still gives us
+          ;; nice, relatively quick shrinks.
+          (vector (tuple index-gen index-gen) 0 (* 2 (count coll))))))
 
 (def byte
   "Generates `java.lang.Byte`s, using the full byte-range."
@@ -453,6 +491,8 @@
   (assert (even? (count kvs)))
   (let [ks (take-nth 2 kvs)
         vs (take-nth 2 (rest kvs))]
+    (assert (every? generator? vs)
+            "Value args to hash-map must be generators")
     (fmap (partial zipmap ks)
           (apply tuple vs))))
 
@@ -464,12 +504,19 @@
   "Generate only ascii character."
   (fmap core/char (choose 32 126)))
 
-(def char-alpha-numeric
-  "Generate alpha-numeric characters."
+(def char-alphanumeric
+  "Generate alphanumeric characters."
   (fmap core/char
         (one-of [(choose 48 57)
                  (choose 65 90)
                  (choose 97 122)])))
+
+(def ^{:deprecated "0.6.0"}
+  char-alpha-numeric
+  "Deprecated - use char-alphanumeric instead.
+
+  Generate alphanumeric characters."
+  char-alphanumeric)
 
 (def char-alpha
   "Generate alpha characters."
@@ -483,7 +530,7 @@
 
 (def ^{:private true} char-keyword-rest
   "Generate characters that can be the char following first of a keyword."
-  (frequency [[2 char-alpha-numeric]
+  (frequency [[2 char-alphanumeric]
               [1 char-symbol-special]]))
 
 (def ^{:private true} char-keyword-first
@@ -499,9 +546,16 @@
   "Generate ascii strings."
   (fmap clojure.string/join (vector char-ascii)))
 
-(def string-alpha-numeric
-  "Generate alpha-numeric strings."
-  (fmap clojure.string/join (vector char-alpha-numeric)))
+(def string-alphanumeric
+  "Generate alphanumeric strings."
+  (fmap clojure.string/join (vector char-alphanumeric)))
+
+(def ^{:deprecated "0.6.0"}
+  string-alpha-numeric
+  "Deprecated - use string-alphanumeric instead.
+
+  Generate alphanumeric strings."
+  string-alphanumeric)
 
 (defn- +-or---digit?
   "Returns true if c is \\+ or \\- and d is non-nil and a digit.
@@ -556,7 +610,7 @@
               [1 (return \.)]]))
 
 (def ^{:private true} char-symbol-rest
-  (frequency [[10 char-alpha-numeric]
+  (frequency [[10 char-alphanumeric]
               [5 char-symbol-special]
               [1 (return \.)]]))
 
@@ -624,6 +678,8 @@
                        (gen/one-of [gen/boolean gen/int]))
   "
   [container-gen-fn scalar-gen]
+  (assert (generator? scalar-gen)
+          "Second arg to recursive-gen must be a generator")
   (sized (fn [size]
            (bind (choose 1 5)
                  (fn [height] (let [children-size (Math/pow size (/ 1 height))]

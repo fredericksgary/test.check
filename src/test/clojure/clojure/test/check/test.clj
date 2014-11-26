@@ -262,10 +262,10 @@
 
     (testing "char"                 (t gen/char                 Character))
     (testing "char-ascii"           (t gen/char-ascii           Character))
-    (testing "char-alpha-numeric"   (t gen/char-alpha-numeric   Character))
+    (testing "char-alphanumeric"    (t gen/char-alphanumeric    Character))
     (testing "string"               (t gen/string               String))
     (testing "string-ascii"         (t gen/string-ascii         String))
-    (testing "string-alpha-numeric" (t gen/string-alpha-numeric String))
+    (testing "string-alphanumeric"  (t gen/string-alphanumeric  String))
 
     (testing "vector" (t (gen/vector gen/int) clojure.lang.IPersistentVector))
     (testing "list"   (t (gen/list gen/int)   clojure.lang.IPersistentList))
@@ -412,8 +412,7 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest elements-with-empty
-  (let [t (is (thrown? clojure.lang.ExceptionInfo (gen/elements ())))]
-    (is (= () (-> t ex-data :collection)))))
+  (is (thrown? AssertionError (gen/elements ()))))
 
 (defspec elements-with-a-set 100
   (prop/for-all [num (gen/elements #{9 10 11 12})]
@@ -489,3 +488,28 @@
              "it is possible for this to fail without there being a problem, "
              "but we should be able to rely upon probability to not bother us "
              "too frequently."))))
+
+;; shuffling a vector generates a permutation of that vector
+;; ---------------------------------------------------------------------------
+
+(def original-vector-and-permutation
+  (gen/bind (gen/vector gen/int)
+        #(gen/tuple (gen/return %) (gen/shuffle %))))
+
+(defspec shuffled-vector-is-a-permutation-of-original 100
+  (prop/for-all [[coll permutation] original-vector-and-permutation]
+                (= (sort coll) (sort permutation))))
+
+;; defspec macro
+;; ---------------------------------------------------------------------------
+
+(defspec run-only-once 1 (prop/for-all* [gen/int] (constantly true)))
+
+(defspec run-default-times (prop/for-all* [gen/int] (constantly true)))
+
+(defspec run-with-map {:num-tests 1} (prop/for-all* [gen/int] (constantly true)))
+
+(defspec run-with-map {:num-tests 1
+                       :seed 1}
+  (prop/for-all [a gen/int]
+                (= a 0)))

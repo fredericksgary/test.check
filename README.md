@@ -6,7 +6,7 @@ higher-level tests.
 
 ## Obtainage
 
-`[com.gfredericks/test.check "0.5.9-p3"]`
+`[com.gfredericks.forks.org.clojure/test.check "0.6.0-p1"]`
 
 ## User-visible differences
 
