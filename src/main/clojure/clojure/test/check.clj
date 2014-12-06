@@ -71,7 +71,7 @@
                      (second key))))))))
 
 (defn- smallest-shrink
-  [total-nodes-visited depth smallest]
+  [total-nodes-visited smallest]
   {:total-nodes-visited total-nodes-visited
    :depth (-> smallest meta :key (get 2) count)
    :result (:result smallest)
@@ -164,6 +164,10 @@
 ;; Hyper Shrinking!
 ;;
 
+(defn log
+  [& strs]
+  #_ (apply println strs))
+
 (defn ^:private quiet-nth
   "Like nth but returns nil if i is out of range."
   [coll i]
@@ -175,37 +179,38 @@
   [rose-tree]
   (println "Shrinking:")
   (letfn [(vanilla [nodes current-smallest total-nodes-visited]
-            (println "vanilla")
+            (log "vanilla")
             (if (empty? nodes)
-              (smallest-shrink total-nodes-visited current-smallest)
+              (smallest-shrink total-nodes-visited (update-in current-smallest
+                                                              [:result]
+                                                              force))
               (let [[head & tail] nodes
                     result (force (:result (rose/root head)))]
                 (if (not-falsey-or-exception? result)
                   ;; this node passed the test, so now try testing its right-siblings
                   (do
-                    (print \.) (flush)
+                    ;; (print \.) (flush)
                     (recur tail current-smallest (inc total-nodes-visited)))
                   ;; this node failed the test, so check if it has children,
                   ;; if so, traverse down them. If not, save this as the best example
                   ;; seen now and then look at the right-siblings
                   ;; children
                   (do
-                    (print \newline)
-                    (println "Smaller:" (-> head rose/root meta :key))
+                    (log "\nSmaller:" (-> head rose/root meta :key))
                     (flush)
                     (let [children (rose/children head)]
                       (if (empty? children)
                         (recur tail (rose/root head) (inc total-nodes-visited))
                         #(hyper-start head (inc total-nodes-visited)))))))))
           (hyper-start [rose-tree total-nodes-visited]
-            (println "hyper-start")
+            (log "hyper-start")
             (let [last-index (-> rose-tree rose/root meta :key (get 2) peek)]
               #(hyper-unbounded rose-tree
                                 total-nodes-visited
                                 last-index
                                 1)))
           (hyper-unbounded [rose-tree total-nodes-visited i next-jump]
-            (println "hyper-unbounded" i next-jump)
+            (log "hyper-unbounded" i next-jump)
             (hyper-unbounded* (-> rose-tree rose/root meta ::reproducer)
                               (nth (iterate #(quiet-nth (rose/children %) i) rose-tree) next-jump)
                               total-nodes-visited i next-jump))
@@ -214,14 +219,14 @@
                      (-> rose-tree' rose/root :result force
                          not-falsey-or-exception? not))
               (do
-                (println "\nSmaller:" (-> rose-tree' rose/root meta :key))
+                (log "\nSmaller:" (-> rose-tree' rose/root meta :key))
                 #(hyper-unbounded rose-tree' (inc total-nodes-visited) i (* 2 next-jump)))
               (do
-                (print \.) (flush)
+                ;; (print \.) (flush)
                 #(hyper-bounded (rose-tree-ghost) (inc total-nodes-visited) i next-jump))) )
 
           (hyper-bounded [rose-tree total-nodes-visited i too-high]
-            (println "hyper-bounded" i too-high)
+            (log "hyper-bounded" i too-high)
             (if (<= too-high 1)
               #(vanilla (rose/children rose-tree)
                         (rose/root rose-tree)
@@ -234,34 +239,36 @@
                          (-> rose-tree' rose/root :result force
                              not-falsey-or-exception? not))
                   (do
-                    (println "\nSmaller:" (-> rose-tree' rose/root meta :key))
+                    (log "\nSmaller:" (-> rose-tree' rose/root meta :key))
                     (recur rose-tree' (inc total-nodes-visited) i (- too-high jump)))
                   (do
-                    (print \.) (flush)
+                    ;; (print \.) (flush)
                     (recur (rose-tree-ghost) (inc total-nodes-visited) i jump))))))]
     (trampoline vanilla (rose/children rose-tree) (rose/root rose-tree) 0)))
 
 (declare reproducibilize)
-
-(defn reproduce
-  [prop key]
-  (println "REPRODUCING")
-  (reproducibilize (gen/call-key-with-meta prop key)))
-
-(defn reproducibilize
-  [rose-tree prop]
-  (rose/fmap (fn [x]
-               (let [{:keys [key]} (meta x)]
-                 (vary-meta x assoc ::reproducer (partial reproduce prop key))))
-             rose-tree))
 
 (defn debuggify
   [rose-tree]
   (rose/fmap (fn [m]
                (let [k (-> m meta :key)]
                  (update-in m [:result] (fn [d]
-                                          (delay (println "  Running test with" k)
-                                                 (force d))))))
+                                          (delay
+                                           (when (or true (zero? (rand-int 5000)))
+                                             (println "  Running test with" k))
+                                           (force d))))))
+             rose-tree))
+
+(defn reproduce
+  [prop key]
+  (println "REPRODUCING")
+  (debuggify (reproducibilize (gen/call-key-with-meta prop key) prop)))
+
+(defn reproducibilize
+  [rose-tree prop]
+  (rose/fmap (fn poopy [x]
+               (let [{:keys [key]} (meta x)]
+                 (vary-meta x assoc ::reproducer (partial reproduce prop key))))
              rose-tree))
 
 (defn hyper-shrink

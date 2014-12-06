@@ -7,6 +7,8 @@
   :source-paths ["src/main/clojure"]
   :test-paths ["src/test/clojure"]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.6.0"]]}}
+  ;; :aot :all
   :global-vars {*warn-on-reflection* true}
   :plugins [[codox "0.8.10"]]
-  :codox {:defaults {:doc/format :markdown}})
+  :codox {:defaults {:doc/format :markdown}}
+  :jvm-opts ["-Xmx150m"])
