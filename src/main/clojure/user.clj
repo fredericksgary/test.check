@@ -185,3 +185,23 @@
   []
   (quality-tests)
   (performance-tests))
+
+;;
+;; dieharder
+;;
+
+(defn print-JUR-data
+  []
+  (let [dos (java.io.DataOutputStream. System/out)
+        rng (java.util.Random.)]
+    (loop []
+      (.writeLong dos (.nextLong rng))
+      (recur))))
+
+(defn print-siphash-data
+  []
+  (let [dos (java.io.DataOutputStream. System/out)]
+    (loop [rng (r/make-siphash-random (System/currentTimeMillis))]
+      (let [[rng1 rng2] (r/split rng)]
+        (.writeLong dos (r/rand-long rng1))
+        (recur rng2)))))
