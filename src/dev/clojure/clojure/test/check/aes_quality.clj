@@ -7,6 +7,33 @@
 ;;
 ;; Let's do the non-overlapping variant, seems easier to decompose
 
+(def expected-mean 141909)
+;; how on earth do we use this?
+(def expected-sigma 290.0)
+
+(defn stats
+  [xs]
+  (let [c (double (count xs))
+        mean (/ (reduce + xs) c)
+        variance (/ (->> xs
+                         (map #(- mean %))
+                         (map #(* % %))
+                         (reduce +))
+                    c)]
+    {:mean mean
+     :sigma (Math/sqrt variance)
+     :variance variance}))
+
+(defn p-value
+  [xs]
+  ;; haha no idea what I'm doing
+  (let [{:keys [mean sigma]} (stats xs)
+        standard-error (/ expected-sigma (count xs))
+        z-score (/ (- mean expected-mean) standard-error)]
+    ;; ???
+    z-score)
+  )
+
 (defn longs->w20s
   [the-longs]
   (->> the-longs
