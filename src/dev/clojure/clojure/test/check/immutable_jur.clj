@@ -1,11 +1,11 @@
 (ns clojure.test.check.immutable-jur
-  "Implementing an immutable version of JUR."
+  "An immutable (and quasi-splittable) version of java.util.Random."
   (:refer-clojure :exclude [next rand-int])
   (:require [clojure.test.check.random :as r]))
 
 ;; Hoping to find out if JUR is efficiently splittable.
 ;;
-;; Knuth:
+;; Knuth, 3.2.1 eq 6:
 ;;   X_{n+k} = (a^kX_n + (a^k - 1)\frac{c}{b}) \mod m
 ;;
 ;;   where a is multiplier, b=a-1, and c is increment
@@ -14,8 +14,10 @@
 ;;
 ;;   X_{n+2} = (a^2X_n + (a^2 - 1)\frac{c}{b}) \mod m
 ;;
-;;   I.e., we set the new multiplier to be (* multiplier multiplier)
-;;   and the new addend to something else.
+;;   Noting that (a^2-1) = (a+1)(a-1) = (a+1)*b this
+;;   simplifies to:
+;;
+;;   X_{n+2} = (a^2X_n + c(a+1)) \mod m
 ;;
 
 (def ^:const ^:private multiplier 16r5DEECE66D)
@@ -27,6 +29,7 @@
   (-> seed (bit-xor multiplier) (bit-and mask)))
 
 (defn ^:private inc-state
+  "The core step in the java.util.Random algorithm."
   [^long multiplier ^long addend ^long state]
   (-> state
       (unchecked-multiply multiplier)
@@ -38,12 +41,15 @@
   (rand-int [_] "Returns an Integer."))
 
 (deftype JavaUtilRandom [^long state ^long multiplier ^long addend]
+
   IJavaUtilRandom
   (next [_] (JavaUtilRandom. (inc-state multiplier addend state)
                              multiplier
                              addend))
   (rand-int [_]
+    ;; only uses (intentionally) the top 32 bits of the 48-bit state
     (unchecked-int (bit-shift-right state 16)))
+
   r/IRandom
   (rand-long [rng]
     (let [rng2 (next rng)]
@@ -69,6 +75,7 @@
                    addend))
 
 (defn JUR->ints
+  "Returns an infinite lazy seq of integers from the JUR RNG."
   [rng]
   ((fn self [rng]
      (let [int (rand-int rng)
@@ -77,37 +84,45 @@
    rng))
 
 (comment
+  ;; The first 12 ints from the builtin JUR
   (let [rng (java.util.Random. 42)]
-    (repeatedly 10 #(.nextInt rng)))
-=>
-(-1170105035
- 234785527
- -1360544799
- 205897768
- 1325939940
- -248792245
- 1190043011
- -1255373459
- -1436456258
- 392236186)
+    (repeatedly 12 #(.nextInt rng)))
+  =>
+  (-1170105035
+   234785527
+   -1360544799
+   205897768
+   1325939940
+   -248792245
+   1190043011
+   -1255373459
+   -1436456258
+   392236186
+   -415012931
+   1938135004)
 
+  ;; The first 12 ints from non-splitting use of our JUR
+  ;; (identical to above)
   (let [rng (make-java-util-random 42)]
     (take 12 (JUR->ints rng)))
 
-=>
-(-1170105035
- 234785527
- -1360544799
- 205897768
- 1325939940
- -248792245
- 1190043011
- -1255373459
- -1436456258
- 392236186
- -415012931
- 1938135004)
+  =>
+  (-1170105035
+   234785527
+   -1360544799
+   205897768
+   1325939940
+   -248792245
+   1190043011
+   -1255373459
+   -1436456258
+   392236186
+   -415012931
+   1938135004)
 
+  ;; The first 12 ints from a four-way split -- note that it's the
+  ;; same 12 numbers; each sequence consists of every 4th number, with
+  ;; a different starting point
   (let [rng (make-java-util-random 42)
         [rng1 rng2] (r/split rng)
         [rng3 rng4] (r/split rng1)
@@ -116,26 +131,10 @@
      (take 3 (JUR->ints rng5))
      (take 3 (JUR->ints rng4))
      (take 3 (JUR->ints rng6))])
-
-=>
-[(-1170105035 1325939940 -1436456258)
- (234785527 -248792245 392236186)
- (-1360544799 1190043011 -415012931)
- (205897768 -1255373459 1938135004)]
-
-
-  (./bg
-    (loop [a1    multiplier
-           a2    multiplier
-           steps 0]
-      (let [a1' (-> (unchecked-multiply a1 a1)
-                    (bit-and mask))
-            a2' (-> (unchecked-multiply a1 a1)
-                    (as-> a
-                          (unchecked-multiply a a))
-                    (bit-and mask))]
-        (if (= a1' a2')
-          steps
-          (recur a1' a2' (inc steps))))))
+  =>
+  [(-1170105035 1325939940 -1436456258)
+   (234785527 -248792245 392236186)
+   (-1360544799 1190043011 -415012931)
+   (205897768 -1255373459 1938135004)]
 
   )
