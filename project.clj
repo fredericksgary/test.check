@@ -9,6 +9,7 @@
   :test-paths ["src/test/clojure"]
   :jvm-opts ^:replace ["-Xmx512m" "-server"]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.6.0"]
+                                  [org.apache.commons/commons-math3 "3.4.1"]
                                   [org.clojure/clojurescript "0.0-2496"]]
                    :source-paths ["src/dev/clojure"]}}
   :aliases {"print-random"
