@@ -119,17 +119,34 @@
   [seed-str run-name]
   (let [daos (java.io.DataOutputStream. System/out)
         seed (Long/parseLong ^String seed-str)]
-    (if (= run-name "JUR")
-      (let [rng (java.util.Random. seed)]
-        (loop [] (.writeLong daos (.nextLong rng)) (recur)))
+    (cond (= run-name "JUR")
+          (let [rng (java.util.Random. seed)]
+            (loop [] (.writeLong daos (.nextLong rng)) (recur)))
 
-      (let [[impl-name strategy-name] (clojure.string/split run-name #"-" 2)
-            impl (splittable-impls (keyword impl-name))
-            strategy (linearization-strategies (keyword strategy-name))]
-        (if (::reduction? (meta strategy))
-          (strategy (impl seed)
-                    (fn [_ ^long x]
-                      (.writeLong daos x))
-                    nil)
-          (doseq [long (strategy (impl seed))]
-            (.writeLong daos long)))))))
+          (= run-name "RANGE")
+          (do (loop [i 0]
+                (doto daos
+                  (.writeByte (unchecked-byte i))
+                  (.writeByte (unchecked-byte (bit-shift-right i 8)))
+                  (.writeByte (unchecked-byte (bit-shift-right i 16)))
+                  (.writeByte (unchecked-byte (bit-shift-right i 24))))
+                (recur (inc i))))
+
+          (= run-name "LRANGE")
+          (do
+            (loop [i 0]
+              (.writeLong daos i)
+              (recur (inc i))))
+
+
+          :else
+          (let [[impl-name strategy-name] (clojure.string/split run-name #"-" 2)
+                impl (splittable-impls (keyword impl-name))
+                strategy (linearization-strategies (keyword strategy-name))]
+            (if (::reduction? (meta strategy))
+              (strategy (impl seed)
+                        (fn [_ ^long x]
+                          (.writeLong daos x))
+                        nil)
+              (doseq [long (strategy (impl seed))]
+                (.writeLong daos long)))))))
