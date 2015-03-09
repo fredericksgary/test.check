@@ -13,7 +13,8 @@
   {:AES
    (fn [^long seed] (r/make-aes-random seed seed))
    :siphash
-   (fn [^long seed] (r/make-siphash-random seed))})
+   (fn [^long seed] (r/make-siphash-random seed))
+   :SHA1 r/make-sha1-random})
 
 (defn lump
   "Returns a lazy seq of 2^n longs from the given rng."
