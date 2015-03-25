@@ -22,14 +22,22 @@
       [non-nil-seed (gen/random non-nil-seed)])))
 
 (defn- complete
+  [{:keys [property num-tests seed report-fn]}]
   [property num-trials seed]
-  (ct/report-trial property num-trials num-trials)
-  {:result true :num-tests num-trials :seed seed})
+  (report-fn {:type :complete
+              :num-tests num-tests
+              :property property})
+  #_(ct/report-trial property num-trials num-trials)
+  {:result true :num-tests num-tests :seed seed})
 
 (defn- not-falsey-or-exception?
   "True if the value is not falsy or an exception"
   [value]
   (and value (not (instance? Throwable value))))
+
+(def default-opts
+  {:max-size 200
+   :report-fn (constantly nil)})
 
 (defn quick-check
   "Tests `property` `num-tests` times.
@@ -46,13 +54,21 @@
       (def p (for-all [a gen/pos-int] (> (* a a) a)))
       (quick-check 100 p)
   "
-  [num-tests property & {:keys [seed max-size] :or {max-size 200}}]
+  [num-tests property & opts]
   (let [[created-seed rng] (make-rng seed)
+
+        {:keys [seed max-size report-fn] :as opts}
+        (merge default-opts
+               opts
+               {:property property
+                :seed created-seed
+                :num-tests num-tests})
+
         size-seq (gen/make-size-range-seq max-size)]
     (loop [so-far 0
            size-seq size-seq]
       (if (== so-far num-tests)
-        (complete property num-tests created-seed)
+        (complete opts)
         (let [[size & rest-size-seq] size-seq
               result-map-rose (gen/call-gen property rng size)
               result-map (rose/root result-map-rose)
@@ -60,7 +76,11 @@
               args (:args result-map)]
           (if (not-falsey-or-exception? result)
             (do
-              (ct/report-trial property so-far num-tests)
+              (report-fn {:type      :trial
+                          :property  property
+                          :so-far    so-far
+                          :num-tests num-tests})
+              #_(ct/report-trial property so-far num-tests)
               (recur (inc so-far) rest-size-seq))
             (failure property result-map-rose so-far size created-seed)))))))
 
