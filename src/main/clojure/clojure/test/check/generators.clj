@@ -13,7 +13,8 @@
                             shuffle not-empty symbol namespace])
   (:require [clojure.core :as core]
             [clojure.test.check.random :as random]
-            [clojure.test.check.rose-tree :as rose]))
+            [clojure.test.check.rose-tree :as rose]
+            [clojure.test.check.compile-flags :refer [flag!]]))
 
 
 ;; Gen
@@ -80,7 +81,13 @@
   (make-gen
    (fn [rnd size]
      ;; could make this lazy once we have immutable RNGs
-     (mapv #(call-gen % %2 size) gens (random-states (count gens) rnd)))))
+     (mapv #(call-gen % %2 size) gens
+           (flag!
+            :lazy-splits
+            (random-states (count gens) rnd)
+
+            :smart-splits
+            (r/split-n rnd (count gens)))))))
 
 ;; Exported generator functions
 ;; ---------------------------------------------------------------------------

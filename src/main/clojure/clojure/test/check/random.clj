@@ -10,8 +10,8 @@
 (ns ^{:author "Gary Fredericks"
       :doc "Purely functional and splittable pseudo-random number generators."}
   clojure.test.check.random
-  (:refer-clojure :exclude [unsigned-bit-shift-right]))
-
+  (:refer-clojure :exclude [unsigned-bit-shift-right])
+  (:require [clojure.test.check.compile-flags :refer [flag!]]))
 
 (defprotocol IRandom
   (split [rng]
@@ -114,6 +114,16 @@
                                (Long/bitCount)))
                      (bit-xor (longify 0xaaaaaaaaaaaaaaaa))))))
 
+(deftype Pair [rng1 rng2]
+  ;; minimal impl for the use in this codebase
+  clojure.lang.Indexed
+  (nth [_ i]
+    (case i 0 rng1 1 rng2))
+  (nth [_ i not-found]
+    (case i 0 rng1 1 rng2 not-found))
+  clojure.lang.Seqable
+  (seq [_] (list rng1 rng2)))
+
 (deftype JavaUtilSplittableRandom [^long gamma ^long state]
   IRandom
   (rand-long [_]
@@ -122,11 +132,88 @@
     (let [state' (+ gamma state)
           state'' (+ gamma state')
           gamma' (mix-gamma state'')]
-      [(JavaUtilSplittableRandom. gamma state'')
-       (JavaUtilSplittableRandom. gamma' (mix-64 state'))])))
+      (flag!
+       :pair
+       (Pair. (JavaUtilSplittableRandom. gamma state'')
+              (JavaUtilSplittableRandom. gamma' (mix-64 state')))
+       :vector
+       [(JavaUtilSplittableRandom. gamma state'')
+        (JavaUtilSplittableRandom. gamma' (mix-64 state'))]))))
+
+(defn split-n
+  "Returns a collection of n RNGs."
+  [^JavaUtilSplittableRandom rng n]
+  (let [gamma (.gamma rng)
+        n-dec (dec n)]
+    (loop [state (.state rng)
+           ret (transient [])]
+      (if (= n-dec (count ret))
+        (-> ret (conj! (JavaUtilSplittableRandom. gamma state)) (persistent!))
+        (let [state' (+ gamma state)
+              state'' (+ gamma state')
+              gamma' (mix-gamma state'')]
+          (recur state''
+                 (conj! ret (JavaUtilSplittableRandom. gamma' (mix-64 state')))))))))
+
+(defn build-cache
+  "Returns an array of longs of size `cache-size`. The longs will
+  be derived by adding gamma to the state, and the even-numbered
+  entries will be passed through mix-64."
+  [^long state ^long gamma ^long cache-size]
+  (let [ret ^longs (make-array Long/TYPE cache-size)]
+    (loop [i 0, state state]
+      (if (= i cache-size)
+        ret
+        (let [state1 (+ gamma state)
+              state2 (+ gamma state1)]
+          (aset ret i (mix-64 state1))
+          (aset ret (inc i) state2)
+          (recur (+ 2 i) state2))))))
+
+(deftype JavaUtilSplittableRandomCached [^longs cache ^long range-start ^long range-size]
+  IRandom
+  (rand-long [_]
+    (aget cache range-start))
+  (split [_]
+    (if (= 2 range-size)
+      (let [base-state (aget cache range-start)
+            base-gamma (mix-gamma (aget cache (inc range-start)))
+            state' (+ base-state base-gamma)
+            state1 (+ state' base-gamma)
+            state2 (mix-64 state')
+            gamma2 (mix-gamma state1)]
+        (flag!
+         :pair
+         (Pair. (JavaUtilSplittableRandomCached. (build-cache state1 base-gamma 32) 0 32)
+                (JavaUtilSplittableRandomCached. (build-cache state2 gamma2 32) 0 32))
+         :vector
+         [(JavaUtilSplittableRandomCached. (build-cache state1 base-gamma 32) 0 32)
+          (JavaUtilSplittableRandomCached. (build-cache state2 gamma2 32) 0 32)]))
+      (let [half-size (bit-shift-right range-size 1)]
+        (flag!
+         :pair
+         (Pair. (JavaUtilSplittableRandomCached. cache range-start half-size)
+                (JavaUtilSplittableRandomCached. cache (+ range-start half-size) half-size))
+         :vector
+         [(JavaUtilSplittableRandomCached. cache range-start half-size)
+          (JavaUtilSplittableRandomCached. cache (+ range-start half-size) half-size)])))))
 
 (def ^:private golden-gamma
   (longify 0x9e3779b97f4a7c15))
+
+(defn make-java-util-splittable-random-cached
+  [^long seed]
+  (JavaUtilSplittableRandomCached. (build-cache seed golden-gamma 32) 0 32))
+
+(defn run-LIJUSR
+  [seed total-nums]
+  (let [^long gamma golden-gamma]
+       (loop [x 0, i 0, ^long state seed]
+         (if (= i total-nums)
+           x
+           (let [state2 (unchecked-add state gamma)
+                 x2 (mix-64 state2)]
+             (recur (bit-xor x2 x) (inc i) state2))))))
 
 (defn make-java-util-splittable-random
   [^long seed]

@@ -12,7 +12,8 @@
                                   [org.clojure/clojurescript "0.0-2496"]
                                   [criterium "0.4.3"]]
                    :source-paths ["src/dev/clojure"]}
-             :1.5 {:dependencies [[org.clojure/clojure "1.5.1"]]}}
+             :1.5 {:dependencies [[org.clojure/clojure "1.5.1"]]}
+             :aot-all {:aot :all}}
   :aliases {"print-random"
             ["trampoline" "run" "-m" "clojure.test.check.prng-comparison/print-random"]
             "xor-random"

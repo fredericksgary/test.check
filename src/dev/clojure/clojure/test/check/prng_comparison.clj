@@ -16,6 +16,8 @@
    (fn [^long seed] (r'/make-aes-random seed seed))
    :IJUSR
    (fn [^long seed] (r/make-java-util-splittable-random seed))
+   :IJUSRC
+   (fn [^long seed] (r/make-java-util-splittable-random-cached seed))
    :siphash
    (fn [^long seed] (r'/make-siphash-random seed))
    :SHA1 r'/make-sha1-random
@@ -170,6 +172,9 @@
          x
          (let [[^long x' rng2] (.nextLong rng)]
            (recur rng2 (inc i) (bit-xor x x'))))))
+
+   (= run-name "LIJUSR")
+   (fn [] (r/run-LIJUSR seed total-nums))
 
    :else
    (let [[impl-name strategy-name] (clojure.string/split run-name #"-" 2)
