@@ -87,7 +87,7 @@
             (random-states (count gens) rnd)
 
             :smart-splits
-            (r/split-n rnd (count gens)))))))
+            (random/split-n rnd (count gens)))))))
 
 ;; Exported generator functions
 ;; ---------------------------------------------------------------------------
