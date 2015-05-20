@@ -143,17 +143,20 @@
 (defn split-n
   "Returns a collection of n RNGs."
   [^JavaUtilSplittableRandom rng n]
-  (let [gamma (.gamma rng)
-        n-dec (dec n)]
-    (loop [state (.state rng)
-           ret (transient [])]
-      (if (= n-dec (count ret))
-        (-> ret (conj! (JavaUtilSplittableRandom. gamma state)) (persistent!))
-        (let [state' (+ gamma state)
-              state'' (+ gamma state')
-              gamma' (mix-gamma state'')]
-          (recur state''
-                 (conj! ret (JavaUtilSplittableRandom. gamma' (mix-64 state')))))))))
+  (case n
+    0 []
+    1 [rng]
+    (let [gamma (.gamma rng)
+          n-dec (dec n)]
+      (loop [state (.state rng)
+             ret (transient [])]
+        (if (= n-dec (count ret))
+          (-> ret (conj! (JavaUtilSplittableRandom. gamma state)) (persistent!))
+          (let [state' (+ gamma state)
+                state'' (+ gamma state')
+                gamma' (mix-gamma state'')]
+            (recur state''
+                   (conj! ret (JavaUtilSplittableRandom. gamma' (mix-64 state'))))))))))
 
 (defn build-cache
   "Returns an array of longs of size `cache-size`. The longs will
