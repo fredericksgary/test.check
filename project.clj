@@ -1,4 +1,4 @@
-(defproject com.gfredericks.forks.org.clojure/test.check "0.7.0-p1-SNAPSHOT"
+(defproject com.gfredericks.forks.org.clojure/test.check "0.8.0-p1-SNAPSHOT"
   :description "A QuickCheck inspired property-based testing library."
   :url "https://github.com/clojure/test.check"
   :license {:name "Eclipse Public License"
@@ -8,7 +8,8 @@
   :test-paths ["src/test/clojure"]
   :jvm-opts ^:replace ["-Xmx512m" "-server"]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.6.0"]
-                                  [org.clojure/clojurescript "0.0-2496"]]}}
+                                  [org.clojure/clojurescript "0.0-2496"]]}
+             :1.5 {:dependencies [[org.clojure/clojure "1.5.1"]]}}
   :global-vars {*warn-on-reflection* true}
   :plugins [[codox "0.8.10"]
             [cider/cider-nrepl "0.8.1"]

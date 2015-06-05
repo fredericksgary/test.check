@@ -24,13 +24,11 @@ higher-level tests.
 
 ## What is a key?
 
-A key is a triple `[seed size shrink-path]` that can be used to
+A key is a triple `[rng size shrink-path]` that can be used to
 reproduce any individual test run caused by normal use.
 
 ## User-invisible differences
 
-- There is a hacky fix (in `bind`) for
-  [TCHECK-27](http://dev.clojure.org/jira/browse/TCHECK-27)
 - Properties now generate delays of the test result instead of
   the test result directly, which allows walking the shrink tree
   faster
