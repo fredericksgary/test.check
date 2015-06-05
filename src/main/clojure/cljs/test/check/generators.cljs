@@ -7,32 +7,16 @@
 ;   the terms of this license.
 ;   You must not remove this notice, or any other, from this software.
 
-(ns clojure.test.check.generators
-  (:import java.util.Random)
+(ns cljs.test.check.generators
   (:refer-clojure :exclude [int vector list hash-map map keyword
                             char boolean byte bytes sequence
                             shuffle not-empty symbol namespace])
-  (:require [clojure.core :as core]
-            [clojure.test.check.rose-tree :as rose]))
+  (:require [cljs.core :as core]
+            [cljs.test.check.rose-tree :as rose]
+            [goog.string :as gstring]
+            [clojure.string])
+  (:import [goog.testing PseudoRandom]))
 
-;; Generic helpers
-;; ---------------------------------------------------------------------------
-
-(defn- sequence
-  "Haskell type:
-  Monad m => [m a] -> m [a]
-
-  Specfically used here to turn a list of generators
-  into a generator of a list."
-  [bind-fn return-fn ms]
-  (reduce (fn [acc elem]
-            (bind-fn acc
-                     (fn [xs]
-                       (bind-fn elem
-                                (fn [y]
-                                  (return-fn (conj xs y)))))))
-          (return-fn [])
-          ms))
 
 ;; Gen
 ;; (internal functions)
@@ -91,7 +75,7 @@
 (defn fmap
   [f gen]
   (assert (generator? gen) "Second arg to fmap must be a generator")
-  (gen-fmap (partial rose/fmap f) gen))
+  (gen-fmap #(rose/fmap f %) gen))
 
 
 (defn return
@@ -107,11 +91,8 @@
     (gen-fmap rose/join
               (make-gen
                 (fn [rnd size]
-                  ;; Creating a new instance of Random here allows the
-                  ;; shrink-tree to be deterministic
-                  (let [new-seed (.nextLong ^Random rnd)]
-                    (rose/fmap #(call-gen % (Random. new-seed) size)
-                               (rose/fmap k rose))))))))
+                  (rose/fmap #(call-gen % rnd size)
+                             (rose/fmap k rose)))))))
 
 (defn bind
   "Create a new generator that passes the result of `gen` into function
@@ -136,43 +117,21 @@
 
 (defn random
   {:no-doc true}
-  ([] (Random.))
-  ([seed] (Random. seed)))
+  ([] (PseudoRandom.))
+  ([seed] (PseudoRandom. seed)))
 
-(defn make-key-seq
+(defn make-size-range-seq
   {:no-doc true}
-  [seed max-size]
-  (let [^Random rand (random seed)]
-    (clojure.core/map
-     clojure.core/vector
-     (repeatedly #(.nextLong rand))
-     (cycle (range 0 max-size))
-     (repeat []))))
-
-(defn call-key
-  [gen [seed size path]]
-  (loop [rose (call-gen gen (random seed) size)
-         path path]
-    (if-let [[idx & idxs] (seq path)]
-      (recur (nth (rose/children rose) idx) idxs)
-      rose)))
-
-(defn call-key-with-meta
-  "Like call-key, but adds :key metadata to each element in the
-  resulting rose tree. Thus the elements of the rose tree must
-  be IObj."
-  [gen [seed size path :as key]]
-  (rose/fmap-indexed
-   (fn [path' x]
-     (vary-meta x assoc :key [seed size (into path path')]))
-   (call-key gen key)))
+  [max-size]
+  (cycle (range 0 max-size)))
 
 (defn sample-seq
   "Return a sequence of realized values from `generator`."
   ([generator] (sample-seq generator 100))
   ([generator max-size]
-     (for [key (make-key-seq (System/currentTimeMillis) max-size)]
-       (rose/root (call-key generator key)))))
+   (let [r (random)
+         size-seq (make-size-range-seq max-size)]
+     (core/map #(rose/root (call-gen generator r %)) size-seq))))
 
 (defn sample
   "Return a sequence of `num-samples` (default 10)
@@ -189,20 +148,20 @@
 
 (defn- halfs
   [n]
-  (take-while (partial not= 0) (iterate #(quot % 2) n)))
+  (take-while #(not= 0 %) (iterate #(quot % 2) n)))
 
 (defn- shrink-int
   [integer]
-  (core/map (partial - integer) (halfs integer)))
+  (core/map #(- integer %) (halfs integer)))
 
 (defn- int-rose-tree
   [value]
   [value (core/map int-rose-tree (shrink-int value))])
 
 (defn- rand-range
-  [^Random rnd lower upper]
+  [rnd lower upper]
   {:pre [(<= lower upper)]}
-  (let [factor (.nextDouble rnd)]
+  (let [factor (.random rnd)]
     (long (Math/floor (+ lower (- (* factor (+ 1.0 upper))
                                   (* factor lower)))))))
 
@@ -233,7 +192,7 @@
   `min-range` to `max-range`, inclusive."
   [lower upper]
   (make-gen
-    (fn [^Random rnd _size]
+    (fn [rnd _size]
       (let [value (rand-range rnd lower upper)]
         (rose/filter
           #(and (>= % lower) (<= % upper))
@@ -253,7 +212,7 @@
   (assert (every? generator? generators)
           "Arg to one-of must be a collection of generators")
   (bind (choose 0 (dec (count generators)))
-        (partial nth generators)))
+        #(nth generators %)))
 
 (defn- pick
   [[h & tail] n]
@@ -394,7 +353,7 @@
 
 (def neg-int
   "Generate negative integers bounded by the generator's `size` parameter."
-  (fmap (partial * -1) nat))
+  (fmap #(* -1 %) nat))
 
 (def s-pos-int
   "Generate strictly positive integers bounded by the generator's `size`
@@ -465,7 +424,7 @@
   if it's not already."
   [coll]
   (let [index-gen (choose 0 (dec (count coll)))]
-    (fmap (partial reduce swap (vec coll))
+    (fmap #(reduce swap (vec coll) %)
           ;; a vector of swap instructions, with count between
           ;; zero and 2 * count. This means that the average number
           ;; of instructions is count, which should provide sufficient
@@ -473,20 +432,22 @@
           ;; nice, relatively quick shrinks.
           (vector (tuple index-gen index-gen) 0 (* 2 (count coll))))))
 
-(def byte
-  "Generates `java.lang.Byte`s, using the full byte-range."
-  (fmap core/byte (choose Byte/MIN_VALUE Byte/MAX_VALUE)))
+;; NOTE: Comment out for now - David
+;;
+;; (def byte
+;;   "Generates `java.lang.Byte`s, using the full byte-range."
+;;   (fmap core/byte (choose Byte/MIN_VALUE Byte/MAX_VALUE)))
 
-(def bytes
-  "Generates byte-arrays."
-  (fmap core/byte-array (vector byte)))
+;; (def bytes
+;;   "Generates byte-arrays."
+;;   (fmap core/byte-array (vector byte)))
 
 (defn map
   "Create a generator that generates maps, with keys chosen from
   `key-gen` and values chosen from `val-gen`."
   [key-gen val-gen]
   (let [input (vector (tuple key-gen val-gen))]
-    (fmap (partial into {}) input)))
+    (fmap #(into {} %) input)))
 
 (defn hash-map
   "Like clojure.core/hash-map, except the values are generators.
@@ -503,7 +464,7 @@
         vs (take-nth 2 (rest kvs))]
     (assert (every? generator? vs)
             "Value args to hash-map must be generators")
-    (fmap (partial zipmap ks)
+    (fmap #(zipmap ks %)
           (apply tuple vs))))
 
 (def char
@@ -572,11 +533,11 @@
 
   Symbols that start with +3 or -2 are not readable because they look
   like numbers."
-  [c ^Character d]
+  [c d]
   (core/boolean (and d
-                     (or (= \+ c)
-                         (= \- c))
-                     (Character/isDigit d))))
+                     (or (identical? \+ c)
+                         (identical? \- c))
+                     (gstring/isNumeric d))))
 
 (def ^{:private true} namespace-segment
   "Generate the segment of a namespace."
