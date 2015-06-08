@@ -14,17 +14,29 @@
 
 
 (defprotocol IRandom
+  (rand-long [rng]
+    "Returns a random long based on the given immutable RNG.
+
+  Note: to maintain independence you should not call more than one
+  function in the IRandom protocol with the same argument")
+  (rand-double [rng]
+    "Returns a random double between 0.0 (inclusive) and 1.0 (exclusive)
+  based on the given immutable RNG.
+
+  Note: to maintain independence you should not call more than one
+  function in the IRandom protocol with the same argument")
   (split [rng]
     "Returns two new RNGs [rng1 rng2], which should generate
   sufficiently independent random data.
 
-  Note: to maintain independence you should not call split and rand-long
-  with the same argument.")
-  (rand-long [rng]
-    "Returns a random long based on the given immutable RNG.
+  Note: to maintain independence you should not call more than one
+  function in the IRandom protocol with the same argument")
+  (split-n [rng n]
+    "Returns a collection of `n` RNGs, which should generate
+  sufficiently independent random data.
 
-  Note: to maintain independence you should not call split and rand-long
-  with the same argument"))
+  Note: to maintain independence you should not call more than one
+  function in the IRandom protocol with the same argument"))
 
 
 ;; Immutable version of Java 8's java.util.SplittableRandom
@@ -114,16 +126,41 @@
                                (Long/bitCount)))
                      (bit-xor (longify 0xaaaaaaaaaaaaaaaa))))))
 
+(def ^:private ^:const double-unit (/ 1.0 (double (bit-set 0 53))))
+;; Java: 0x1.0p-53 or (1.0 / (1L << 53))
+
 (deftype JavaUtilSplittableRandom [^long gamma ^long state]
   IRandom
   (rand-long [_]
     (-> state (+ gamma) (mix-64)))
+  (rand-double [this]
+    (* double-unit (unsigned-bit-shift-right (long (rand-long this)) 11)))
   (split [this]
     (let [state' (+ gamma state)
           state'' (+ gamma state')
           gamma' (mix-gamma state'')]
       [(JavaUtilSplittableRandom. gamma state'')
        (JavaUtilSplittableRandom. gamma' (mix-64 state'))]))
+  (split-n [this n]
+    ;; immitates a particular series of 2-way splits, but avoids the
+    ;; intermediate allocation. See the `split-n-spec` for a test of
+    ;; the equivalence to 2-way splits.
+    (let [n (long n)]
+      (case n
+        0 []
+        1 [this]
+        (let [n-dec (dec n)]
+          (loop [state state
+                 ret (transient [])]
+            (if (= n-dec (count ret))
+              (-> ret
+                  (conj! (JavaUtilSplittableRandom. gamma state))
+                  (persistent!))
+              (let [state' (+ gamma state)
+                    state'' (+ gamma state')
+                    gamma' (mix-gamma state'')
+                    new-rng (JavaUtilSplittableRandom. gamma' (mix-64 state'))]
+                (recur state'' (conj! ret new-rng)))))))))
 
   Object
   (hashCode [_] (.hashCode [gamma state]))
@@ -148,8 +185,25 @@
   [^long seed]
   (JavaUtilSplittableRandom. golden-gamma seed))
 
+;; some global state to make sure that seedless calls to make-random
+;; return independent results
+(def ^:private next-rng
+  "Returns a random-number generator. Successive calls should return
+  independent results."
+  (let [a (atom (make-java-util-splittable-random (System/currentTimeMillis)))
+
+        thread-local
+        (proxy [ThreadLocal] []
+          (initialValue []
+            (first (split (swap! a #(second (split %)))))))]
+    (fn []
+      (let [rng (.get thread-local)
+            [rng1 rng2] (split rng)]
+        (.set thread-local rng2)
+        rng1))))
+
 (defn make-random
   "Given an optional Long seed, returns an object that satisfies the
   IRandom protocol."
-  ([] (make-random (System/currentTimeMillis)))
+  ([] (next-rng))
   ([seed] (make-java-util-splittable-random seed)))

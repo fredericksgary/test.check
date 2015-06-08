@@ -85,7 +85,8 @@
       (recur (* 2 c) (mapcat random/split res)))))
 
 (defn lazy-random-states
-  "Exclude the nth value in a collection."
+  "Given a random number generator, returns an infinite lazy sequence
+  of random number generators."
   [rr]
   (lazy-seq
         (let [[r1 r2] (random/split rr)]
@@ -97,8 +98,7 @@
   [gens]
   (make-gen
    (fn [rnd size]
-     ;; could make this lazy once we have immutable RNGs
-     (mapv #(call-gen % %2 size) gens (random-states (count gens) rnd)))))
+     (mapv #(call-gen % %2 size) gens (random/split-n rnd (count gens))))))
 
 ;; Exported generator functions
 ;; ---------------------------------------------------------------------------
@@ -191,6 +191,16 @@
    (take num-samples (sample-seq generator))))
 
 
+(defn generate
+  "Returns a single sample value from the generator, using a default
+  size of 30."
+  ([generator]
+     (generate generator 30))
+  ([generator size]
+     (let [rng (random/make-random)]
+       (rose/root (call-gen generator rng size)))))
+
+
 ;; Internal Helpers
 ;; ---------------------------------------------------------------------------
 
@@ -204,15 +214,18 @@
 
 (defn- int-rose-tree
   [value]
-  [value (core/map int-rose-tree (shrink-int value))])
+  (rose/make-rose value (core/map int-rose-tree (shrink-int value))))
 
 (defn- rand-range
   [rnd lower upper]
   {:pre [(<= lower upper)]}
-  (let [factor (/ (Math/abs ^long (random/rand-long rnd))
-                  (double Long/MAX_VALUE))]
-    (long (Math/floor (+ lower (- (* factor (+ 1.0 upper))
-                                  (* factor lower)))))))
+  (let [factor (random/rand-double rnd)
+        ;; Use -' to maintain accuracy with overflow protection.
+        width (-' upper lower -1)]
+    (if (< width Long/MAX_VALUE)
+      (+ lower (long (Math/floor (* factor width))))
+      ;; Clamp down to upper because double math.
+      (min upper (long (Math/floor (+ lower (* factor width))))))))
 
 (defn sized
   "Create a generator that depends on the size parameter.
