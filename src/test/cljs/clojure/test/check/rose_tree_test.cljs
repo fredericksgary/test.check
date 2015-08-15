@@ -7,24 +7,25 @@
 ;   the terms of this license.
 ;   You must not remove this notice, or any other, from this software.
 
-(ns cljs.test.check.rose-tree-test
+(ns clojure.test.check.rose-tree-test
   (:require [cljs.test :as test :include-macros true]
-            [cljs.test.check :as tc]
-            [cljs.test.check.generators :as gen]
-            [cljs.test.check.properties :as prop :include-macros true]
-            [cljs.test.check.rose-tree :as rose]
-            [cljs.test.check.cljs-test :as ct :refer-macros [defspec]]))
+            [clojure.test.check :as tc]
+            [clojure.test.check.generators :as gen]
+            [clojure.test.check.properties :as prop :include-macros true]
+            [clojure.test.check.rose-tree :as rose]
+            [clojure.test.check.clojure-test :as ct :refer-macros [defspec]]))
 
 (defn depth-one-children
-  [[root children]]
-  (into [] (map rose/root children)))
+  [rose]
+  (into [] (map rose/root (rose/children rose))))
 
 (defn depth-one-and-two-children
-  [[root children]]
-  (into []
-    (concat
-      (map rose/root children)
-      (map rose/root (mapcat rose/children children)))))
+  [rose]
+  (let [the-children (rose/children rose)]
+    (into []
+          (concat
+           (map rose/root the-children)
+           (map rose/root (mapcat rose/children the-children))))))
 
 (defspec test-collapse-rose
   100

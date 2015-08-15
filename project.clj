@@ -7,8 +7,8 @@
   :source-paths ["src/main/clojure"]
   :test-paths ["src/test/clojure"]
   :jvm-opts ^:replace ["-Xmx512m" "-server"]
-  :profiles {:dev {:dependencies [[org.clojure/clojure "1.6.0"]
-                                  [org.clojure/clojurescript "0.0-2496"]]}
+  :profiles {:dev {:dependencies [[org.clojure/clojure "1.7.0"]
+                                  [org.clojure/clojurescript "1.7.48"]]}
              :1.5 {:dependencies [[org.clojure/clojure "1.5.1"]]}}
   :global-vars {*warn-on-reflection* true}
   :plugins [[codox "0.8.10"]
@@ -16,8 +16,8 @@
             [lein-cljsbuild "1.0.4-SNAPSHOT"]]
   :codox {:defaults {:doc/format :markdown}
           :exclude [clojure.test.check.rose-tree
-                    cljs.test.check.cljs-test
-                    cljs.test.check.properties]}
+                    clojure.test.check.clojure-test
+                    clojure.test.check.properties]}
   :cljsbuild
   {:builds
    [{:id "node-dev"

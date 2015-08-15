@@ -10,7 +10,7 @@
 (ns clojure.test.check.clojure-test
   (:require [clojure.test :as ct]))
 
-(defn- assert-check
+(defn assert-check
   [{:keys [result] :as m}]
   (prn m)
   (if (instance? Throwable result)
@@ -48,29 +48,28 @@
   {:arglists '([name property] [name num-tests? property] [name options? property])}
   ([name property] `(defspec ~name nil ~property))
   ([name options property]
-     `(do
-        ;; consider my shame for introducing a cyclical dependency like this...
-        ;; Don't think we'll know what the solution is until clojure.test.check
-        ;; integration with another test framework is attempted.
-        (require 'clojure.test.check)
-        (let [property# (vary-meta ~property assoc
-                                   :type ::property
-                                   ::name (quote ~(symbol (clojure.core/name (.getName *ns*))
-                                                          (clojure.core/name name))))]
-          (doto
-              (defn ~(vary-meta name assoc
-                                ::defspec true
-                                :test `#(#'assert-check (assoc (~name)
-                                                          :test-var (str '~name))))
-                ([] (let [options# (process-options ~options)]
-                      (apply ~name (:num-tests options#) (apply concat options#))))
-                ([~'times & {:keys [~'seed ~'max-size] :as ~'quick-check-opts}]
-                   (apply
-                    clojure.test.check/quick-check
-                    ~'times
-                    (vary-meta property# assoc :name (str '~property))
-                    (apply concat ~'quick-check-opts))))
-            (alter-var-root vary-meta assoc :property property#))))))
+     ;; consider my shame for introducing a cyclical dependency like this...
+     ;; Don't think we'll know what the solution is until clojure.test.check
+     ;; integration with another test framework is attempted.
+     (require 'clojure.test.check)
+     `(let [property# (vary-meta ~property assoc
+                                 :type ::property
+                                 ::name (quote ~(symbol (clojure.core/name (.getName *ns*))
+                                                        (clojure.core/name name))))]
+        (doto
+            (defn ~(vary-meta name assoc
+                              ::defspec true
+                              :test `#(#'assert-check (assoc (~name)
+                                                             :test-var (str '~name))))
+              ([] (let [options# (process-options ~options)]
+                    (apply ~name (:num-tests options#) (apply concat options#))))
+              ([~'times & {:keys [~'seed ~'max-size] :as ~'quick-check-opts}]
+               (apply
+                clojure.test.check/quick-check
+                ~'times
+                (vary-meta property# assoc :name (str '~property))
+                (apply concat ~'quick-check-opts))))
+          (alter-var-root vary-meta assoc :property property#)))))
 
 (def ^:dynamic *report-trials*
   "Controls whether property trials should be reported via clojure.test/report.

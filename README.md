@@ -19,8 +19,6 @@ higher-level tests.
   property and a "key"
 - There is a `clojure.test.check/resume` function that takes a
   property and a "key"
-- [TCHECK-42](http://dev.clojure.org/jira/browse/TCHECK-42) has been
-  patched
 
 ## What is a key?
 
