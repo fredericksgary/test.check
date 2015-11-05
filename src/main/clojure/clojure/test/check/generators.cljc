@@ -784,6 +784,29 @@
 ;; fancy numbers
 ;; ---------------------------------------------------------------------------
 
+
+(def large-integer
+  "Generates a platform-native integer from its full range (64-bit Longs
+  in clj and numbers between -(2^53 - 1) and (2^53 - 1)."
+  (sized (fn [size]
+           (let [max-bit-count (min size #?(:clj 64 :cljs 53))]
+             (gen-bind (choose 0 max-bit-count)
+                       (fn [bit-count-rose]
+                         (let [bit-count (rose/root bit-count-rose)]
+                           (if (<= bit-count 32)
+                             (let [bound (apply * (repeat bit-count 2))]
+                               (choose (- bound) bound))
+                             ;; TODO: shrink this with shrink-int
+                             (fmap
+                              (fn [[high-bits low-bits]]
+                                (+ (apply * high-bits (repeat 32 2))
+                                   low-bits))
+                              ;; this can't be good
+                              (tuple (let [bound (apply * (repeat (- bit-count 32) 2))]
+                                       (choose (- bound) bound))
+                                     (choose 0 (dec (apply * (repeat 32 2))))))))))
+             ))))
+
 ;; This code is a lot more complex than any reasonable person would
 ;; expect, for two reasons:
 ;;
