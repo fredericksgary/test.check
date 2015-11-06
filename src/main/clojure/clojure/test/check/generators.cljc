@@ -782,48 +782,88 @@
   ([key-gen val-gen opts]
    (coll-distinct-by {} first false false (tuple key-gen val-gen) opts)))
 
-;; fancy numbers
+;; large integers
 ;; ---------------------------------------------------------------------------
 
-(def TWO_THIRTY_TWO 0x100000000)
+;; This approach has a few distribution edge cases, but is pretty good
+;; for expected uses and is way better than nothing.
 
 (def ^:private gen-raw-long
+  "Generates a single uniformly random long, does not shrink."
   (make-gen (fn [rnd _size]
-              (rose/make-rose (random/rand-long rnd) nil))))
+              (rose/pure (random/rand-long rnd)))))
+
+(def MAX_VALUE #?(:clj Long/MAX_VALUE :cljs (dec (apply * (repeat 53 2)))))
+(def MIN_VALUE #?(:clj Long/MIN_VALUE :cljs (- MAX_VALUE)))
+
+(defn ^:private abs
+  [x]
+  #? (:clj (Math/abs (long x)) :cljs (Math/abs x)))
 
 (defn ^:private long->large-integer
-  "Creates an integer that requires at most bit-count bits to
-  represent it using the given long."
-  [bit-count x]
-  (if (zero? bit-count)
-    #?(:clj 0 :cljs 0)
-    #?(:clj
-       (bit-shift-right x (- 64 bit-count))
-       :cljs
-       ;; there's gotta be an edge case here
-       ;; on one side, no?
-       (-> x
-           (longs/bit-shift-right (- 64 bit-count))
-           (longs/to-number)))))
+  [bit-count x min max]
+  (loop [res (-> x
+                 (#?(:clj bit-shift-right :cljs longs/bit-shift-right)
+                    (- 64 bit-count))
+                 #?(:cljs (longs/to-number))
+                 ;; so we don't get into an infinite loop bit-shifting
+                 ;; -1
+                 (cond-> (zero? min) (abs)))]
+    (if (<= min res max)
+      res
+      (let [res' (- res)]
+        (if (<= min res' max)
+          res'
+          (recur #?(:clj (bit-shift-right res 1)
+                    ;; emulating bit-shift-right
+                    :cljs (-> res
+                              (cond-> (odd? res)
+                                ((if (neg? res) inc dec)))
+                              (/ 2)))))))))
 
-(defn ^:private integer->bit-count
-  "Returns the number of bits needed to represent the given integer."
-  [x]
-  #? (:clj
-      (if (zero? )))) (Long/numberOfTrailingZeros (Long/highestOneBit -1))
-
-(def large-integer
-  "Generates a platform-native integer from its full range (in clj,
-  64-bit Longs, and in cljs, numbers between -(2^53 - 1) and (2^53 -
-  1)."
+(defn ^:private large-integer**
+  "Like large-integer*, but assumes range includes zero."
+  [min max]
   (sized (fn [size]
-           (let [size (max size 1) ;; no need to worry about size=0
-                 max-bit-count (min size #?(:clj 64 :cljs 54))]
+           (let [size (core/max size 1) ;; no need to worry about size=0
+                 max-bit-count (core/min size #?(:clj 64 :cljs 54))]
              (gen-fmap (fn [rose]
                          (let [[bit-count x] (rose/root rose)]
-                           (int-rose-tree (long->large-integer bit-count x))))
-                       (tuple (choose 0 max-bit-count)
+                           (int-rose-tree (long->large-integer bit-count x min max))))
+                       (tuple (choose 1 max-bit-count)
                               gen-raw-long))))))
+
+
+(defn large-integer*
+  "Like large-integer, but accepts options:
+
+    :min  the minimum integer (inclusive)
+    :max  the maximum integer (inclusive)
+
+  Both :min and :max are optional."
+  [{:keys [min max]}]
+  (let [min (or min MIN_VALUE)
+        max (or max MAX_VALUE)]
+    (assert (<= min max))
+    (such-that #(<= min % max)
+               (if (<= min 0 max)
+                 (large-integer** min max)
+                 (if (< max 0)
+                   (fmap #(+ max %) (large-integer** (- min max) 0))
+                   (fmap #(+ min %) (large-integer** 0 (- max min))))))))
+
+(def large-integer
+  "Generates a platform-native integer from the full available range
+  (in clj, 64-bit Longs, and in cljs, numbers between -(2^53 - 1) and
+  (2^53 - 1).
+
+  See large-integer* for more options."
+  (large-integer* {}))
+
+
+;; doubles
+;; ---------------------------------------------------------------------------
+
 
 ;; This code is a lot more complex than any reasonable person would
 ;; expect, for two reasons:
