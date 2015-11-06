@@ -719,6 +719,18 @@
 ;; fancy numbers
 ;; ---------------------------------------------------------------------------
 
+#?@(:cljs [(def MAX_INTEGER (dec (apply * (repeat 53 2))))
+           (def MIN_INTEGER (- MAX_INTEGER))])
+
+(defn native-integer?
+  [x]
+  #?(:clj (instance? Long x)
+     :cljs (and (integer? x) (<= MIN_INTEGER x MAX_INTEGER))))
+
+(defspec large-integer-spec 500
+  (prop/for-all [x gen/large-integer]
+    (native-integer? x)))
+
 (defn infinite?
   [x]
   #?(:clj (Double/isInfinite x)

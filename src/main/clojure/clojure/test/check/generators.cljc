@@ -16,7 +16,8 @@
             [clojure.test.check.random :as random]
             [clojure.test.check.rose-tree :as rose]
             #?@(:cljs [[goog.string :as gstring]
-                       [clojure.string]])))
+                       [clojure.string]
+                       [clojure.test.check.random.longs :as longs]])))
 
 
 ;; Gen
@@ -784,28 +785,31 @@
 ;; fancy numbers
 ;; ---------------------------------------------------------------------------
 
+(def TWO_THIRTY_TWO 0x100000000)
+
+(def ^:private gen-raw-long
+  (make-gen (fn [rnd _size]
+              (rose/make-rose (random/rand-long rnd) nil))))
 
 (def large-integer
   "Generates a platform-native integer from its full range (64-bit Longs
   in clj and numbers between -(2^53 - 1) and (2^53 - 1)."
   (sized (fn [size]
-           (let [max-bit-count (min size #?(:clj 64 :cljs 53))]
-             (gen-bind (choose 0 max-bit-count)
-                       (fn [bit-count-rose]
-                         (let [bit-count (rose/root bit-count-rose)]
-                           (if (<= bit-count 32)
-                             (let [bound (apply * (repeat bit-count 2))]
-                               (choose (- bound) bound))
-                             ;; TODO: shrink this with shrink-int
-                             (fmap
-                              (fn [[high-bits low-bits]]
-                                (+ (apply * high-bits (repeat 32 2))
-                                   low-bits))
-                              ;; this can't be good
-                              (tuple (let [bound (apply * (repeat (- bit-count 32) 2))]
-                                       (choose (- bound) bound))
-                                     (choose 0 (dec (apply * (repeat 32 2))))))))))
-             ))))
+           (let [max-bit-count (min size #?(:clj 64 :cljs 54))]
+             (gen-fmap (fn [rose]
+                         (let [[bit-count x] (rose/root rose)
+                               x (if (zero? bit-count) 0 x)]
+                           (int-rose-tree
+                            #?(:clj
+                               (bit-shift-right x (- 64 bit-count))
+                               :cljs
+                               ;; there's gotta be an edge case here
+                               ;; on one side, no?
+                               (-> x
+                                   (longs/bit-shift-right (- 64 bit-count))
+                                   (longs/to-number))))))
+                       (tuple (choose 0 max-bit-count)
+                              gen-raw-long))))))
 
 ;; This code is a lot more complex than any reasonable person would
 ;; expect, for two reasons:

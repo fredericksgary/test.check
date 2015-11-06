@@ -20,6 +20,10 @@
   [x n]
   (.shiftRightUnsigned x n))
 
+(defn bit-shift-right
+  [x n]
+  (.shiftRight x n))
+
 (defn +
   [x y]
   (.add x y))
@@ -43,6 +47,10 @@
 (defn from-number
   [x]
   (long/fromNumber x))
+
+(defn to-number
+  [x]
+  (long/toNumber x))
 
 (defn ->long
   "Coerces to long, or returns nil if not possible."
