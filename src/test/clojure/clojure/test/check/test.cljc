@@ -719,8 +719,8 @@
 ;; fancy numbers
 ;; ---------------------------------------------------------------------------
 
-#?@(:cljs [(def MAX_INTEGER (dec (apply * (repeat 53 2))))
-           (def MIN_INTEGER (- MAX_INTEGER))])
+#?(:cljs (do (def MAX_INTEGER (dec (apply * (repeat 53 2))))
+             (def MIN_INTEGER (- MAX_INTEGER))))
 
 (defn native-integer?
   [x]

@@ -10,7 +10,7 @@
 (ns ^{:author "Gary Fredericks"
       :doc "Internal namespace, wrapping some goog.math.Long functionality."}
   clojure.test.check.random.longs
-  (:refer-clojure :exclude [+ * bit-xor bit-or bit-count
+  (:refer-clojure :exclude [+ * bit-xor bit-or bit-count bit-shift-right
                             unsigned-bit-shift-right])
   (:require [clojure.test.check.random.longs.bit-count-impl :as bit-count]
             [goog.math.Long :as long]))
@@ -50,7 +50,7 @@
 
 (defn to-number
   [x]
-  (long/toNumber x))
+  (.toNumber x))
 
 (defn ->long
   "Coerces to long, or returns nil if not possible."
@@ -62,5 +62,6 @@
         x))
 
 (def ONE (long/getOne))
+(def ZERO (long/getZero))
 
 (def bit-count bit-count/bit-count)

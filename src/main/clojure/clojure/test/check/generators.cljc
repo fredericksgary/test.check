@@ -798,7 +798,7 @@
            (let [max-bit-count (min size #?(:clj 64 :cljs 54))]
              (gen-fmap (fn [rose]
                          (let [[bit-count x] (rose/root rose)
-                               x (if (zero? bit-count) 0 x)]
+                               x (if (zero? bit-count) #? (:clj 0 :cljs longs/ZERO) x)]
                            (int-rose-tree
                             #?(:clj
                                (bit-shift-right x (- 64 bit-count))
