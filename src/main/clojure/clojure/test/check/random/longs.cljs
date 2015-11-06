@@ -62,6 +62,5 @@
         x))
 
 (def ONE (long/getOne))
-(def ZERO (long/getZero))
 
 (def bit-count bit-count/bit-count)

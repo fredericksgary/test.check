@@ -791,23 +791,37 @@
   (make-gen (fn [rnd _size]
               (rose/make-rose (random/rand-long rnd) nil))))
 
+(defn ^:private long->large-integer
+  "Creates an integer that requires at most bit-count bits to
+  represent it using the given long."
+  [bit-count x]
+  (if (zero? bit-count)
+    #?(:clj 0 :cljs 0)
+    #?(:clj
+       (bit-shift-right x (- 64 bit-count))
+       :cljs
+       ;; there's gotta be an edge case here
+       ;; on one side, no?
+       (-> x
+           (longs/bit-shift-right (- 64 bit-count))
+           (longs/to-number)))))
+
+(defn ^:private integer->bit-count
+  "Returns the number of bits needed to represent the given integer."
+  [x]
+  #? (:clj
+      (if (zero? )))) (Long/numberOfTrailingZeros (Long/highestOneBit -1))
+
 (def large-integer
-  "Generates a platform-native integer from its full range (64-bit Longs
-  in clj and numbers between -(2^53 - 1) and (2^53 - 1)."
+  "Generates a platform-native integer from its full range (in clj,
+  64-bit Longs, and in cljs, numbers between -(2^53 - 1) and (2^53 -
+  1)."
   (sized (fn [size]
-           (let [max-bit-count (min size #?(:clj 64 :cljs 54))]
+           (let [size (max size 1) ;; no need to worry about size=0
+                 max-bit-count (min size #?(:clj 64 :cljs 54))]
              (gen-fmap (fn [rose]
-                         (let [[bit-count x] (rose/root rose)
-                               x (if (zero? bit-count) #? (:clj 0 :cljs longs/ZERO) x)]
-                           (int-rose-tree
-                            #?(:clj
-                               (bit-shift-right x (- 64 bit-count))
-                               :cljs
-                               ;; there's gotta be an edge case here
-                               ;; on one side, no?
-                               (-> x
-                                   (longs/bit-shift-right (- 64 bit-count))
-                                   (longs/to-number))))))
+                         (let [[bit-count x] (rose/root rose)]
+                           (int-rose-tree (long->large-integer bit-count x))))
                        (tuple (choose 0 max-bit-count)
                               gen-raw-long))))))
 
