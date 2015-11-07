@@ -4,6 +4,9 @@
 
 - `(gen/return x)` — A constant generator that always generates `x`
 - `gen/boolean` — generates booleans (`true` and `false`)
+
+### Numbers
+
 - `gen/nat` — generates small non-negative integers (useful for generating sizes of things)
 - `gen/large-integer` — generates a large range of integers
   - variant with options: `(gen/large-integer* {:min x, :max y})`
@@ -11,6 +14,12 @@
   - variant with options: `(gen/double* {:min x, :max y, :infinite? true, :NaN? true})`
 - `gen/ratio` — generates ratios (sometimes integers)
 
+### Characters & Strings
+
+- `gen/char` — generates characters
+- `gen/char-ascii` — generates printable ASCII characters
+- `gen/char-alphanumeric` — generates alphanumeric ASCII characters
+- `gen/char-alpha` — generates alphabetic ASCII characters
 
 ## Heterogeneous Collections
 
