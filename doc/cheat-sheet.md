@@ -35,7 +35,7 @@
     <td>Generates a large range of integers</td>
   </tr>
   <tr>
-    <td>`gen/double`</td>
+    <td><code>gen/double</code></td>
     <td>N/A</td>
     <td>Generates the full range of doubles, including infinities and <code>NaN</code></td>
   </tr>
