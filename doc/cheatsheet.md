@@ -4,6 +4,8 @@
 
 - `(gen/return x)` — A constant generator that always generates `x`
 - `gen/boolean` — generates booleans (`true` and `false`)
+- `gen/any` — generates any clojure value
+- `gen/any-printable` — generates any printable clojure value
 
 ### Numbers
 
