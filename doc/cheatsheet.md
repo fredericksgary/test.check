@@ -6,7 +6,7 @@
 - `(gen/sample g n)` — generates `n` samples from `g`
 - `(gen/generate g)` — generates a single moderately sized value from `g`
 - `(gen/generate g size)` — generates a value from `g` with the given
-  `size` (normally sizez range from 0 to 200)
+  `size` (normally sizes range from 0 to 200)
 
 ## Simple Generators
 
