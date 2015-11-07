@@ -33,5 +33,5 @@
                 "N/A")
               (convert-backticks doc))))
   (println "</table>"))
-;
+
 (spit "doc/cheatsheet.md" (with-out-str (print-markdown)))
