@@ -66,6 +66,9 @@
   - Variants:
     - `(gen/set g {:num-elements x, :max-tries 20})`
     - `(gen/set g {:min-elements x, :max-elements y, :max-tries 20})`
+- `(gen/map key-gen val-gen)` — generates a map with keys from `key-gen`
+  and vals from `val-gen`
+  - same opts as `gen/set`u
 - `(gen/sorted-set g)` — just like `gen/set`, but generates sorted-sets
 - `(gen/vector-distinct g)` — same signature as `gen/set`, but generates
   vectors of distinct elements
