@@ -98,3 +98,4 @@
   is always `n`
 - `(gen/scale f g)` — creates a variant of `g` whose `size` parameter
   is `(f size)`
+- `(gen/no-shrink g)` — creates a variant of `g` that does not shrink
