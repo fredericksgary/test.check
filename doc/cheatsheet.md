@@ -13,6 +13,7 @@
 
 - `(gen/return x)` — A constant generator that always generates `x`
 - `gen/boolean` — generates booleans (`true` and `false`)
+- `gen/uuid` — generates uniformly random UUIDs, does not shrink
 - `(gen/elements coll)` — generates elements from `coll` (which must be non-empty)
 - `(gen/shuffle coll)` — generates vectors with the elements of `coll`
   in random orders
