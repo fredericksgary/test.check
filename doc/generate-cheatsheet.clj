@@ -18,8 +18,11 @@
             {:code gen/double
              :doc "Generates a double from the full range, including infinities and `NaN`."}
             {:code (gen/double* {.. ..})
-             :args {}
-             :doc ""}]}])
+             :args {:min "a minimum value"
+                    :max "a maximum value"
+                    :infinite? "whether infinities can be generated"
+                    :NaN? "whether NaNs can be generated"}
+             :doc "Generates a double from the full range, including infinities and `NaN`."}]}])
 
 (defn convert-backticks
   [s]

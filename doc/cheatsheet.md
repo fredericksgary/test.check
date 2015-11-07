@@ -9,5 +9,5 @@
 <tr><td><code>gen/large-integer</code></td><td>N/A</td><td>Generates a large range of integers</td></tr>
 <tr><td><code>(gen/large-integer* {.. ..})</code></td><td><code>:min</code> - a minimum value<br /><code>:max</code> - a maximum value</td><td>Generates a large range of integers</td></tr>
 <tr><td><code>gen/double</code></td><td>N/A</td><td>Generates a double from the full range, including infinities and <code>NaN</code>.</td></tr>
-<tr><td><code>(gen/double* {.. ..})</code></td><td></td><td></td></tr>
+<tr><td><code>(gen/double* {.. ..})</code></td><td><code>:min</code> - a minimum value<br /><code>:max</code> - a maximum value<br /><code>:infinite?</code> - whether infinities can be generated<br /><code>:NaN?</code> - whether NaNs can be generated</td><td>Generates a double from the full range, including infinities and <code>NaN</code>.</td></tr>
 </table>
