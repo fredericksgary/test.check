@@ -10,7 +10,9 @@
             {:code gen/nat
              :doc "Generates small non-negative integers (useful for generating sizes of things)."}
             {:code gen/large-integer
-             :doc "Generates a large range of integers"}]}])
+             :doc "Generates a large range of integers"}
+            {:code (gen/large-integer {.. ..})
+             :doc "NO"}]}])
 
 (defn convert-backticks
   [s]
