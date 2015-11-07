@@ -14,7 +14,9 @@
             {:code (gen/large-integer {.. ..})
              :args {:min "a minimum value"
                     :max "a maximum value"}
-             :doc "Generates a large range of integers"}]}])
+             :doc "Generates a large range of integers"}
+            {:code gen/double
+             :doc "Generates a double from the full range, including infinities and `NaN`."}]}])
 
 (defn convert-backticks
   [s]
