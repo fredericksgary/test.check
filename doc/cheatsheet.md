@@ -14,7 +14,7 @@
   - variant with options: `(gen/double* {:min x, :max y, :infinite? true, :NaN? true})`
 - `gen/ratio` — generates ratios (sometimes integers)
 
-### Characters & Strings
+### Characters & Strings & Things
 
 - `gen/char` — generates characters
 - `gen/char-ascii` — generates printable ASCII characters
@@ -23,6 +23,10 @@
 - `gen/string` — generates a string
 - `gen/string-ascii` — generates a string using `gen/char-ascii`
 - `gen/string-alphanumeric` — generates a string using `gen/char-alphanumeric`
+- `gen/keyword` — generates keywords
+- `gen/keyword-ns` — generates namespaced keywords
+- `gen/symbol` — generates symbols
+- `gen/symbol-ns` — generates namespaced symbols
 
 ## Heterogeneous Collections
 
