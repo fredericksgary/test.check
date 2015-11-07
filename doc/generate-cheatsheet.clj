@@ -11,12 +11,15 @@
              :doc "Generates small non-negative integers (useful for generating sizes of things)."}
             {:code gen/large-integer
              :doc "Generates a large range of integers"}
-            {:code (gen/large-integer {.. ..})
+            {:code (gen/large-integer* {.. ..})
              :args {:min "a minimum value"
                     :max "a maximum value"}
              :doc "Generates a large range of integers"}
             {:code gen/double
-             :doc "Generates a double from the full range, including infinities and `NaN`."}]}])
+             :doc "Generates a double from the full range, including infinities and `NaN`."}
+            {:code (gen/double* {.. ..})
+             :args {}
+             :doc ""}]}])
 
 (defn convert-backticks
   [s]
