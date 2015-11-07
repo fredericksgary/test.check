@@ -10,4 +10,7 @@
 <tr><td><code>(gen/large-integer* {.. ..})</code></td><td><code>:min</code> - a minimum value<br /><code>:max</code> - a maximum value</td><td>Generates a large range of integers</td></tr>
 <tr><td><code>gen/double</code></td><td>N/A</td><td>Generates a double from the full range, including infinities and <code>NaN</code>.</td></tr>
 <tr><td><code>(gen/double* {.. ..})</code></td><td><code>:min</code> - a minimum value<br /><code>:max</code> - a maximum value<br /><code>:infinite?</code> - whether infinities can be generated<br /><code>:NaN?</code> - whether NaNs can be generated</td><td>Generates a double from the full range, including infinities and <code>NaN</code>.</td></tr>
+<thead><th colspan="3">Collections</th></thead>
+<thead><th>Thing</th><th>Args</th><th>What it do</th></thead>
+<tr><td><code>(gen/vector gen & [num-elements] [min-elements max-elements])</code></td><td>N/A</td><td>HELL YEAH</td></tr>
 </table>

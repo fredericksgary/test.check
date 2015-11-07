@@ -22,7 +22,10 @@
                     :max "a maximum value"
                     :infinite? "whether infinities can be generated"
                     :NaN? "whether NaNs can be generated"}
-             :doc "Generates a double from the full range, including infinities and `NaN`."}]}])
+             :doc "Generates a double from the full range, including infinities and `NaN`."}]}
+    {:section-header "Collections"
+     :vars [{:code (gen/vector gen & [num-elements] [min-elements max-elements])
+             :doc "HELL YEAH"}]}])
 
 (defn convert-backticks
   [s]
