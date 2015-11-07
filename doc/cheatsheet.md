@@ -20,6 +20,9 @@
 - `gen/char-ascii` — generates printable ASCII characters
 - `gen/char-alphanumeric` — generates alphanumeric ASCII characters
 - `gen/char-alpha` — generates alphabetic ASCII characters
+- `gen/string` — generates a string
+- `gen/string-ascii` — generates a string using `gen/char-ascii`
+- `gen/string-alphanumeric` — generates a string using `gen/char-alphanumeric`
 
 ## Heterogeneous Collections
 
