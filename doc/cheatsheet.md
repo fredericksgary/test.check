@@ -93,6 +93,10 @@
   probability of picking any particular generator
 - `(gen/not-empty g)` — given a generator that generates collections,
   returns a modified generator that never generates empty collections
+- `(gen/recursive-gen container-gen scalar-gen)` — generates a tree of
+  values, using `container-gen` (which is a function like `gen/list`
+  which takes and returns a generator) and `scalar-gen` (a generator
+  for the leaf values)
 
 ## Sizing & shrinking control
 
