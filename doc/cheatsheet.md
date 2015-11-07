@@ -1,12 +1,13 @@
 # test.check cheatsheet
 
-## Dev utilities
+## Dev utilities, misc
 
 - `(gen/sample g)` — returns 10 smallish samples from `g`
 - `(gen/sample g n)` — generates `n` samples from `g`
 - `(gen/generate g)` — generates a single moderately sized value from `g`
 - `(gen/generate g size)` — generates a value from `g` with the given
   `size` (normally sizes range from 0 to 200)
+- `(gen/generator? g)` — checks if `g` is a generator
 
 ## Simple Generators
 
