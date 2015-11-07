@@ -91,6 +91,8 @@
 - `(gen/frequency [[2 g1] [7 g2] ...])` — generates elements from the
   given generators, using the given weights to determine the
   probability of picking any particular generator
+- `(gen/not-empty g)` — given a generator that generates collections,
+  returns a modified generator that never generates empty collections
 
 ## Sizing & shrinking control
 
