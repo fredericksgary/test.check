@@ -35,8 +35,13 @@
     <td>Generates a large range of integers</td>
   </tr>
   <tr>
-    <td><code>gen/double</code></td>
+    <td>`gen/double`</td>
     <td>N/A</td>
+    <td>Generates the full range of doubles, including infinities and <code>NaN</code></td>
+  </tr>
+  <tr>
+    <td><code>(gen/double* {...})</code></td>
+    <td><code>:min</code> - a minimum value<br /></td>
     <td>Generates the full range of doubles, including infinities and <code>NaN</code></td>
   </tr>
   <tr>
