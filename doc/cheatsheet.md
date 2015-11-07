@@ -22,5 +22,6 @@
   - `(gen/list g)` — generates lists of elements from `g`
   - `(gen/set g)` — generates sets of elements from `g`
     - Variants:
-      - `(gen/set g {:num-elements x, :max-tries 20})
-      - `(gen/set g {:min-elements x, :max-elements y, :max-tries 20})
+      - `(gen/set g {:num-elements x, :max-tries 20})`
+      - `(gen/set g {:min-elements x, :max-elements y, :max-tries 20})`
+  - `(gen/sorted-set g)` — just like `gen/set`, but generates sorted-sets
