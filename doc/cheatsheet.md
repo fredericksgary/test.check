@@ -35,3 +35,10 @@
   - `(gen/list-distinct-by key-fn g)` — generates list of elements
     where `(apply distinct? (map key-fn the-list))`
     - same opts as `gen/set`
+- Combinators
+  - `(gen/let [x g] y)` — **macro**, like `clojure.core/let`, where
+    the right-hand bindings are generators and the left-hand are
+    generated values; creates a generator
+  - `(gen/such-that pred g)` — returns a new generator that generates
+    only elements from `g` that match `pred`
+- Sizing & shrinking control
