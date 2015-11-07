@@ -15,6 +15,7 @@
 - `gen/double` — generates a large range of doubles (w/ infinities & `NaN`)
   - variant with options: `(gen/double* {:min x, :max y, :infinite? true, :NaN? true})`
 - `gen/ratio` — generates ratios (sometimes integers)
+- `gen/byte` — generates a `Byte`
 
 ### Characters & Strings & Things
 
