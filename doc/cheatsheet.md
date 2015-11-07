@@ -9,3 +9,9 @@
   - `gen/double` - generates a large range of doubles (w/ infinities & `NaN`)
     - variant with options: `(gen/double* {:min x, :max y, :infinite? true, :NaN? true})`
   - `gen/ratio` - generates ratios (sometimes integers)
+- Collections
+  - `(gen/vector g)` - generates vectors of elements from `g`
+    - Variants:
+      - `(gen/vector g num-elements)`
+      - `(gen/vector g min-elements max-elements)`
+  - `(gen/list g)` - generates lists of elements from `g`
