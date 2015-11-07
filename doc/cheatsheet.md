@@ -39,6 +39,11 @@
   - `(gen/let [x g] y)` — **macro**, like `clojure.core/let`, where
     the right-hand bindings are generators and the left-hand are
     generated values; creates a generator
+    - same functionality as `gen/fmap` and `gen/bind`
+  - `(gen/fmap f g)` — creates a generator that generates `(f x)` for
+    `x` generated from `g`
+  - `(gen/bind g f)` — similar to `gen/fmap`, but where `(f x)` is itself
+    a generator and `(gen/bind g f)` generates values from `(f x)`
   - `(gen/such-that pred g)` — returns a new generator that generates
     only elements from `g` that match `pred`
     - Variants: `(gen/such-that pred g max-tries)`
