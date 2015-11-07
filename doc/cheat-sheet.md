@@ -7,4 +7,10 @@
   <thead>
     <th>Thing</th><th>Args</th><th>What it do</th>
   </thead>
-</table>2
+
+  <tr>
+    <td><code>(gen/return x)</code></td>
+    <td><code>x: any value</code></td>
+    <td>A constant generator that always generates <code>x</code></td>
+  </tr>
+</table>
