@@ -16,6 +16,8 @@
 - `gen/any` — generates any clojure value
 - `gen/any-printable` — generates any printable clojure value
 - `(gen/elements coll)` — generates elements from `coll` (which must be non-empty)
+- `(gen/shuffle coll)` — generates vectors with the elements of `coll`
+  in random orders
 
 ### Numbers
 
