@@ -31,7 +31,7 @@
   </tr>
   <tr>
     <td><code>(gen/large-integer* {...})</code></td>
-    <td><code>:min</code> - a minimum value; <code>:max</code> - a maximum value</td>
+    <td><code>:min</code> - a minimum value<br /><code>:max</code> - a maximum value</td>
     <td>Generates a large range of integers</td>
   </tr>
   <tr>
