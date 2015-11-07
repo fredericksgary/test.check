@@ -25,3 +25,13 @@
       - `(gen/set g {:num-elements x, :max-tries 20})`
       - `(gen/set g {:min-elements x, :max-elements y, :max-tries 20})`
   - `(gen/sorted-set g)` — just like `gen/set`, but generates sorted-sets
+  - `(gen/vector-distinct g)` — same signature as `gen/set`, but generates
+    vectors of distinct elements
+  - `(gen/list-distinct g)` — same signature as `gen/set`, but generates
+    lists of distinct elements
+  - `(gen/vector-distinct-by key-fn g)` — generates vectors of elements
+    where `(apply distinct? (map key-fn the-vector))`
+    - same opts as `gen/set`
+  - `(gen/list-distinct-by key-fn g)` — generates list of elements
+    where `(apply distinct? (map key-fn the-list))`
+    - same opts as `gen/set`
