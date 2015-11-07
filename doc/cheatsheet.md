@@ -12,6 +12,8 @@
 - Heterogeneous Collections
   - `(gen/tuple g1 g2 ...)` - generates vectors `[x1 x2 ...]` where `x1`
     is drawn from `g1`, `x2` from `g2`, etc.
+  - `(gen/hash-map k1 g1, k2 g2, ...)` - generates maps `{k1 v1, k2 v2, ...}`
+    where `v1` is drawn from `g1`, `v2` from `g2`, etc.
 - Homogeneous Collections
   - `(gen/vector g)` - generates vectors of elements from `g`
     - Variants:
