@@ -42,3 +42,7 @@
   - `(gen/such-that pred g)` — returns a new generator that generates
     only elements from `g` that match `pred`
 - Sizing & shrinking control
+  - `(gen/resize n g)` — creates a variant of `g` whose `size` parameter
+    is always `n`
+  - `(gen/scale f g)` — creates a variant of `g` whose `size` parameter
+    is `(f size)`
