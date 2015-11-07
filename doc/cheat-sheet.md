@@ -14,6 +14,11 @@
     <td>A constant generator that always generates <code>x</code></td>
   </tr>
   <tr>
+    <td><code>gen/boolean</code></td>
+    <td>N/A</td>
+    <td>Generates booleans (<code>true</code> and <code>false</code>)</td>
+  </tr>
+  <tr>
     <td><code>gen/nat</code></td>
     <td>N/A</td>
     <td>Generates small non-negative integers (useful for generating
