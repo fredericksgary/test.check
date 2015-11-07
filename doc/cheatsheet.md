@@ -77,6 +77,11 @@
 - `(gen/such-that pred g)` — returns a new generator that generates
   only elements from `g` that match `pred`
   - Variants: `(gen/such-that pred g max-tries)`
+- `(gen/one-of [g1 g2 ...])` — generates elements from the given
+  generators, picking generators at random
+- `(gen/frequency [[2 g1] [7 g2] ...])` — generates elements from the
+  given generators, using the given weights to determine the
+  probability of picking any particular generator
 
 ## Sizing & shrinking control
 
