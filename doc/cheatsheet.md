@@ -20,3 +20,7 @@
       - `(gen/vector g num-elements)`
       - `(gen/vector g min-elements max-elements)`
   - `(gen/list g)` — generates lists of elements from `g`
+  - `(gen/set g)` — generates sets of elements from `g`
+    - Variants:
+      - `(gen/set g {:num-elements x, :max-tries 20})
+      - `(gen/set g {:min-elements x, :max-elements y, :max-tries 20})
