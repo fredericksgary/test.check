@@ -41,6 +41,7 @@
     generated values; creates a generator
   - `(gen/such-that pred g)` — returns a new generator that generates
     only elements from `g` that match `pred`
+    - Variants: `(gen/such-that pred g max-tries)`
 - Sizing & shrinking control
   - `(gen/resize n g)` — creates a variant of `g` whose `size` parameter
     is always `n`
