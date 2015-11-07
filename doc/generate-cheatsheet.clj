@@ -12,7 +12,9 @@
             {:code gen/large-integer
              :doc "Generates a large range of integers"}
             {:code (gen/large-integer {.. ..})
-             :doc "NO"}]}])
+             :args {:min "a minimum value"
+                    :max "a maximum value"}
+             :doc "Generates a large range of integers"}]}])
 
 (defn convert-backticks
   [s]
