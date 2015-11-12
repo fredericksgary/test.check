@@ -80,7 +80,7 @@
 - `(gen/list-distinct-by key-fn g)` — generates list of elements
   where `(apply distinct? (map key-fn the-list))`
   - same opts as `gen/set`
-- `bytes` — generates a byte array
+- `gen/bytes` — generates a byte array
 
 ## Combinators
 
