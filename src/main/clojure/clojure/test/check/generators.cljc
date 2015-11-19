@@ -1391,3 +1391,15 @@
          (return val#)))
     (core/let [[binding gen & more] bindings]
       `(bind ~gen (fn [~binding] (let [~@more] ~@body))))))
+
+(defn random-shrink
+  [gen]
+  (let [rose (call-gen gen (random/make-random) 20)]
+    rose
+    #_
+    ((fn self [rose]
+       (lazy-seq
+        (cons (rose/root rose)
+              (if-let [cs (seq (rose/children rose))]
+                (self (rand-nth cs))))))
+     rose)))

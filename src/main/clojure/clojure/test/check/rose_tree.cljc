@@ -128,6 +128,18 @@
                (map #(shrink f %) (remove roses)))
     (make-rose (f) [])))
 
+(defn shrink-vector*
+  [f roses]
+  ;; do the left-half-right-half thing
+  )
+
+(defn shrink-vector
+  [f roses]
+  (let [rose (shrink f roses)
+        empty-rose (make-rose (f) [])]
+    (make-rose (root rose)
+               (cons empty-rose (children rose)))))
+
 (defn collapse
   "Return a new rose-tree whose depth-one children
   are the children from depth one _and_ two of the input
