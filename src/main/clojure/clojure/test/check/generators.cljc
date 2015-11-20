@@ -17,7 +17,8 @@
             [clojure.test.check.random :as random]
             [clojure.test.check.rose-tree :as rose]
             #?@(:cljs [[goog.string :as gstring]
-                       [clojure.string]])))
+                       [clojure.string]])
+            [clojure.test.check.impl :refer [get-current-time-millis]]))
 
 
 ;; Gen
@@ -129,7 +130,7 @@
 (defn make-key-seq
   {:no-doc true}
   [seed max-size]
-  (let [rands (lazy-random-states (random/make-random seed))]
+  (core/let [rands (lazy-random-states (random/make-random seed))]
     (core/map
      core/vector
      rands
@@ -158,7 +159,7 @@
   "Return a sequence of realized values from `generator`."
   ([generator] (sample-seq generator 100))
   ([generator max-size]
-   (for [key (make-key-seq (System/currentTimeMillis) max-size)]
+   (for [key (make-key-seq (get-current-time-millis) max-size)]
      (rose/root (call-key generator key)))))
 
 (defn sample

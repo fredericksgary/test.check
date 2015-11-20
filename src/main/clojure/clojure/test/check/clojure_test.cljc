@@ -22,13 +22,6 @@
 
 (def ^:dynamic *default-test-count* 100)
 
-(defmethod print-method ::property
-  [p ^java.io.Writer pw]
-  (let [prop-name (::name (meta p))]
-    (.write pw "#<Property ")
-    (print-method prop-name pw)
-    (.write pw ">")))
-
 (defn process-options
   {:no-doc true}
   [options]
@@ -57,25 +50,23 @@
       ;; integration with another test framework is attempted.
       (require 'clojure.test.check)
 
-
-      `(let [property# (vary-meta ~property assoc
-                                  :type ::property
-                                  ::name (quote ~(symbol (clojure.core/name (.getName *ns*))
-                                                         (clojure.core/name name))))]
-         (doto
-             (defn ~(vary-meta name assoc
-                               ::defspec true
-                               :test `#(clojure.test.check.clojure-test/assert-check
-                                        (assoc (~name) :test-var (str '~name))))
-               ([] (let [options# (process-options ~options)]
-                     (apply ~name (:num-tests options#) (apply concat options#))))
-               ([~'times & {:keys [~'seed ~'max-size] :as ~'quick-check-opts}]
-                (apply
-                 clojure.test.check/quick-check
-                 ~'times
-                 (vary-meta property# assoc :name (str '~property))
-                 (apply concat ~'quick-check-opts))))
-           (alter-var-root vary-meta assoc :property property#))))))
+      (let [impl-name (gensym "impl")]
+        `(let [property# (vary-meta ~property assoc :property-name
+                                    (quote ~(symbol (clojure.core/name (.getName *ns*))
+                                                    (clojure.core/name name))))
+               impl# (fn self# ([] (let [options# (process-options ~options)]
+                                     (apply self# (:num-tests options#) (apply concat options#))))
+                       ([~'times & {:keys [~'seed ~'max-size] :as ~'quick-check-opts}]
+                        (apply
+                         clojure.test.check/quick-check
+                         ~'times
+                         (vary-meta property# assoc :name (str '~property))
+                         (apply concat ~'quick-check-opts))))
+               ~impl-name (vary-meta impl# assoc :property property#)]
+           (def ~(vary-meta name assoc
+                            ::defspec true
+                            :test `#(#'assert-check (assoc (~impl-name) :test-var ~(str name))))
+             ~impl-name))))))
 
 (def ^:dynamic *report-trials*
   "Controls whether property trials should be reported via clojure.test/report.

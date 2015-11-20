@@ -56,7 +56,7 @@
       (quick-check 100 p)
   "
   [num-tests property & {:keys [seed max-size] :or {max-size 200}}]
-  (let [seed (or seed (System/currentTimeMillis))
+  (let [seed (or seed (get-current-time-millis))
         key-seq (gen/make-key-seq seed max-size)]
     (loop [so-far 0
            key-seq key-seq]
@@ -133,7 +133,11 @@
         result (:result root)
         failing-args (:args root)]
 
-    (printf "test.check test failed! (%s)\n" (print-str property))
+    (let [property-string (or (:property-name (meta property))
+                              (pr-str property))]
+      ;; can't use format here because cljs?
+      (println (str "test.check test failed! (" property-string ")")))
+
     (prn {:result result :key (:key (meta root))})
     (ct/report-failure property result trial-number failing-args)
 
