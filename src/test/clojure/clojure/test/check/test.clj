@@ -376,6 +376,46 @@
                                           false))]
              (-> result :shrunk :smallest))))))
 
+;; gen/int returns an integer when size is a double; regression for TCHECK-73
+;; ---------------------------------------------------------------------------
+
+(def gen-double
+  (gen/fmap (fn [[x y]] (double (+ x (/ y 10))))
+            (gen/tuple gen/pos-int (gen/choose 0 9))))
+
+(defspec gen-int-with-double-size 1000
+  (prop/for-all [size gen-double]
+    (integer? (gen/generate gen/int size))))
+
+;; recursive-gen doesn't change ints to doubles; regression for TCHECK-73
+;; ---------------------------------------------------------------------------
+
+(defspec recursive-generator-test 100
+  (let [btree* (fn [g] (gen/hash-map
+                        :value gen/int
+                        :left g
+                        :right g))
+        btree (gen/recursive-gen btree* (gen/return nil))
+        valid? (fn valid? [tree]
+                 (and (integer? (:value tree))
+                      (or (nil? (:left tree))
+                          (valid? (:left tree)))
+                      (or (nil? (:right tree))
+                          (valid? (:right tree)))))]
+    (prop/for-all [t btree] (valid? t))))
+
+(deftest calc-long-increasing
+  ;; access internal gen/calc-long function for testing
+  (are [low high] (apply < (map #(@#'gen/calc-long % low high) (range 0.0 0.9999 0.111)))
+      ;; low and high should not be too close, 100 is a reasonable spread
+      (- Long/MAX_VALUE 100) Long/MAX_VALUE
+      Long/MIN_VALUE (+ Long/MIN_VALUE 100)
+      Long/MIN_VALUE 0
+      0 100
+      -100 0
+      0 Long/MAX_VALUE
+      Long/MIN_VALUE Long/MAX_VALUE))
+
 ;; edn rountrips
 ;; ---------------------------------------------------------------------------
 
@@ -557,3 +597,24 @@
 (defspec run-float-time 1e3
   (prop/for-all [a gen/int]
                 (integer? a)))
+
+;; TCHECK-77 Regression
+;; ---------------------------------------------------------------------------
+
+(deftest choose-distribution-sanity-check
+  (testing
+      "Should not get the same random value more than 90% of the time"
+    ;; This is a probabilistic test; the odds of a false-positive
+    ;; failure for the ranges with two elements should be roughly 1 in
+    ;; 10^162 (and even rarer for larger ranges), so it will never
+    ;; ever happen.
+    (are [low high] (let [xs (gen/sample (gen/choose low high) 1000)
+                          count-of-most-frequent (apply max (vals (frequencies xs)))]
+                      (< count-of-most-frequent 900))
+      (dec Long/MAX_VALUE) Long/MAX_VALUE
+      Long/MIN_VALUE (inc Long/MIN_VALUE)
+      Long/MIN_VALUE 0
+      0 1
+      -1 0
+      0 Long/MAX_VALUE
+      Long/MIN_VALUE Long/MAX_VALUE)))
