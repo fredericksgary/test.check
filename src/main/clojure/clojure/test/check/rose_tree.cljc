@@ -151,8 +151,10 @@
   {:pre [(vector? roses)]}
   (let [rose (shrink-vector* f roses)
         empty-rose (make-rose (f) [])]
-    (make-rose (root rose)
-               (cons empty-rose (children rose)))))
+    (if (empty? roses)
+      rose
+      (make-rose (root rose)
+                 (cons empty-rose (children rose))))))
 
 (defn collapse
   "Return a new rose-tree whose depth-one children
