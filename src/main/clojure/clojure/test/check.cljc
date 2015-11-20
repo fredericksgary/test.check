@@ -17,6 +17,12 @@
 
 (declare shrink-loop failure)
 
+(defn- check-interrupts
+  [msg]
+  #?(:clj
+     (when (Thread/interrupted)
+       (throw (InterruptedException. msg)))))
+
 (defn- make-rng
   [seed]
   (if seed
@@ -50,30 +56,32 @@
       (quick-check 100 p)
   "
   [num-tests property & {:keys [seed max-size] :or {max-size 200}}]
-  (let [[created-seed rng] (make-rng seed)
-        size-seq (gen/make-size-range-seq max-size)]
+  (let [seed (or seed (System/currentTimeMillis))
+        key-seq (gen/make-key-seq seed max-size)]
     (loop [so-far 0
-           size-seq size-seq
-           rstate rng]
+           key-seq key-seq]
+      (check-interrupts "quick-check interrupted")
       (if (== so-far num-tests)
-        (complete property num-tests created-seed)
-        (let [[size & rest-size-seq] size-seq
-              [r1 r2] (random/split rstate)
-              result-map-rose (gen/call-gen property r1 size)
+        (complete property num-tests seed)
+        (let [[key & keys] key-seq
+              result-map-rose (gen/call-key-with-meta property key)
+              result-map-rose (rose/fmap #(update % :result deref)
+                                         result-map-rose)
               result-map (rose/root result-map-rose)
               result (:result result-map)
               args (:args result-map)]
           (if (not-falsey-or-exception? result)
             (do
               (ct/report-trial property so-far num-tests)
-              (recur (inc so-far) rest-size-seq r2))
-            (failure property result-map-rose so-far size created-seed)))))))
+              (recur (inc so-far) keys))
+            (failure property result-map-rose so-far (second key))))))))
 
 (defn- smallest-shrink
   [total-nodes-visited depth smallest]
   {:total-nodes-visited total-nodes-visited
    :depth depth
    :result (:result smallest)
+   :key (:key (meta smallest))
    :smallest (:args smallest)})
 
 (defn- shrink-loop
@@ -89,37 +97,67 @@
   The value returned is the left-most failing example at the depth where a
   passing example was found."
   [rose-tree]
+  (println "Shrinking:")
   (let [shrinks-this-depth (rose/children rose-tree)]
     (loop [nodes shrinks-this-depth
            current-smallest (rose/root rose-tree)
            total-nodes-visited 0
            depth 0]
+
+      (check-interrupts "Shrink interrupted!")
+
       (if (empty? nodes)
         (smallest-shrink total-nodes-visited depth current-smallest)
         (let [[head & tail] nodes
               result (:result (rose/root head))]
           (if (not-falsey-or-exception? result)
             ;; this node passed the test, so now try testing its right-siblings
-            (recur tail current-smallest (inc total-nodes-visited) depth)
+            (do
+              (print \.) (flush)
+              (recur tail current-smallest (inc total-nodes-visited) depth))
             ;; this node failed the test, so check if it has children,
             ;; if so, traverse down them. If not, save this as the best example
             ;; seen now and then look at the right-siblings
             ;; children
-            (if-let [children (seq (rose/children head))]
-              (recur children (rose/root head) (inc total-nodes-visited) (inc depth))
-              (recur tail (rose/root head) (inc total-nodes-visited) depth))))))))
+            (do
+              (print \newline)
+              (println "Smaller:" (-> head rose/root meta :key))
+              (flush)
+              (if-let [children (seq (rose/children head))]
+                (recur children (rose/root head) (inc total-nodes-visited) (inc depth))
+                (recur tail (rose/root head) (inc total-nodes-visited) depth)))))))))
 
 (defn- failure
-  [property failing-rose-tree trial-number size seed]
+  [property failing-rose-tree trial-number size]
   (let [root (rose/root failing-rose-tree)
         result (:result root)
         failing-args (:args root)]
 
+    (printf "test.check test failed! (%s)\n" (print-str property))
+    (prn {:result result :key (:key (meta root))})
     (ct/report-failure property result trial-number failing-args)
 
     {:result result
-     :seed seed
+     :key (:key (meta root))
      :failing-size size
      :num-tests (inc trial-number)
      :fail (vec failing-args)
      :shrunk (shrink-loop failing-rose-tree)}))
+
+(defn retry
+ "First arg can be a property or a defspec function."
+  [prop key]
+  (let [prop (-> prop meta :property (or prop))
+        {:keys [result args]} (rose/root (gen/call-key-with-meta prop key))]
+    (if (not-falsey-or-exception? @result)
+      {:result @result}
+      {:fail args, :result @result})))
+
+(defn resume-shrink
+  "First arg can be a property or a defspec function."
+  [prop key]
+  (let [prop (-> prop meta :property (or prop))
+        result-map-rose (rose/fmap
+                         #(update-in % [:result] deref)
+                         (gen/call-key-with-meta prop key))]
+    (shrink-loop result-map-rose)))

@@ -22,6 +22,13 @@
 
 (def ^:dynamic *default-test-count* 100)
 
+(defmethod print-method ::property
+  [p ^java.io.Writer pw]
+  (let [prop-name (::name (meta p))]
+    (.write pw "#<Property ")
+    (print-method prop-name pw)
+    (.write pw ">")))
+
 (defn process-options
   {:no-doc true}
   [options]
@@ -34,33 +41,41 @@
                               {:bad-options options}))))
 
 #?(:clj
-(defmacro defspec
-  "Defines a new clojure.test test var that uses `quick-check` to verify
+   (defmacro defspec
+     "Defines a new clojure.test test var that uses `quick-check` to verify
   [property] with the given [args] (should be a sequence of generators),
   [default-times] times by default.  You can call the function defined as [name]
   with no arguments to trigger this test directly (i.e., without starting a
   wider clojure.test run), with a single argument that will override
   [default-times], or with a map containing any of the keys
   [:seed :max-size :num-tests]."
-  {:arglists '([name property] [name num-tests? property] [name options? property])}
-  ([name property] `(defspec ~name nil ~property))
-  ([name options property]
-     ;; consider my shame for introducing a cyclical dependency like this...
-     ;; Don't think we'll know what the solution is until clojure.test.check
-     ;; integration with another test framework is attempted.
-     (require 'clojure.test.check)
-     `(defn ~(vary-meta name assoc
-                        ::defspec true
-                        :test `#(clojure.test.check.clojure-test/assert-check
-                                   (assoc (~name) :test-var (str '~name))))
-        ([] (let [options# (process-options ~options)]
-              (apply ~name (:num-tests options#) (apply concat options#))))
-        ([~'times & {:keys [~'seed ~'max-size] :as ~'quick-check-opts}]
-         (apply
-          clojure.test.check/quick-check
-          ~'times
-          (vary-meta ~property assoc :name (str '~property))
-          (apply concat ~'quick-check-opts)))))))
+     {:arglists '([name property] [name num-tests? property] [name options? property])}
+     ([name property] `(defspec ~name nil ~property))
+     ([name options property]
+      ;; consider my shame for introducing a cyclical dependency like this...
+      ;; Don't think we'll know what the solution is until clojure.test.check
+      ;; integration with another test framework is attempted.
+      (require 'clojure.test.check)
+
+
+      `(let [property# (vary-meta ~property assoc
+                                  :type ::property
+                                  ::name (quote ~(symbol (clojure.core/name (.getName *ns*))
+                                                         (clojure.core/name name))))]
+         (doto
+             (defn ~(vary-meta name assoc
+                               ::defspec true
+                               :test `#(clojure.test.check.clojure-test/assert-check
+                                        (assoc (~name) :test-var (str '~name))))
+               ([] (let [options# (process-options ~options)]
+                     (apply ~name (:num-tests options#) (apply concat options#))))
+               ([~'times & {:keys [~'seed ~'max-size] :as ~'quick-check-opts}]
+                (apply
+                 clojure.test.check/quick-check
+                 ~'times
+                 (vary-meta property# assoc :name (str '~property))
+                 (apply concat ~'quick-check-opts))))
+           (alter-var-root vary-meta assoc :property property#))))))
 
 (def ^:dynamic *report-trials*
   "Controls whether property trials should be reported via clojure.test/report.

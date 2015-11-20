@@ -160,7 +160,23 @@
                     state'' (+ gamma state')
                     gamma' (mix-gamma state'')
                     new-rng (JavaUtilSplittableRandom. gamma' (mix-64 state'))]
-                (recur state'' (conj! ret new-rng))))))))))
+                (recur state'' (conj! ret new-rng)))))))))
+
+  Object
+  (hashCode [_] (.hashCode [gamma state]))
+  (equals [_ o]
+    (and (instance? JavaUtilSplittableRandom o)
+         (= gamma (.gamma ^JavaUtilSplittableRandom o))
+         (= state (.state ^JavaUtilSplittableRandom o)))))
+
+(defmethod print-method JavaUtilSplittableRandom
+  [^JavaUtilSplittableRandom jusr ^java.io.Writer pw]
+  (doto pw
+    (.write "#clojure.test.check.random.JavaUtilSplittableRandom[")
+    (.write (str (.gamma jusr)))
+    (.write " ")
+    (.write (str (.state jusr)))
+    (.write "]")))
 
 (def ^:private golden-gamma
   (longify 0x9e3779b97f4a7c15))
