@@ -440,8 +440,8 @@
                   (repeat (rose/root num-elements-rose)
                           generator))
                  (fn [roses]
-                   (gen-pure (rose/shrink core/vector
-                                          roses)))))))
+                   (gen-pure (rose/shrink-vector core/vector
+                                                 roses)))))))
   ([generator num-elements]
    (assert (generator? generator) "First arg to vector must be a generator")
    (apply tuple (repeat num-elements generator)))
@@ -455,8 +455,8 @@
                           generator))
                  (fn [roses]
                    (gen-bind
-                     (gen-pure (rose/shrink core/vector
-                                            roses))
+                     (gen-pure (rose/shrink-vector core/vector
+                                                   roses))
                      (fn [rose]
                        (gen-pure (rose/filter
                                    (fn [v] (and (>= (count v) min-elements)
@@ -472,8 +472,8 @@
                          (repeat (rose/root num-elements-rose)
                                  generator))
                         (fn [roses]
-                          (gen-pure (rose/shrink core/list
-                                                 roses)))))))
+                          (gen-pure (rose/shrink-vector core/list
+                                                        roses)))))))
 
 (defn- swap
   [coll [i1 i2]]
@@ -569,7 +569,7 @@
                ;; shuffling once and we have no need to shrink the
                ;; shufling.
                (shuffle-fn rng)
-               (rose/shrink #(into empty-coll %&)))
+               (rose/shrink-vector #(into empty-coll %&)))
 
           :else
           (core/let [[rng1 rng2] (random/split rng)
@@ -1394,12 +1394,20 @@
 
 (defn random-shrink
   [gen]
-  (let [rose (call-gen gen (random/make-random) 20)]
-    rose
-    #_
+  (core/let [rose (call-gen gen (random/make-random) 20)]
     ((fn self [rose]
        (lazy-seq
         (cons (rose/root rose)
               (if-let [cs (seq (rose/children rose))]
                 (self (rand-nth cs))))))
+     rose)))
+
+(defn fastest-shrink
+  [gen]
+  (core/let [rose (call-gen gen (random/make-random) 20)]
+    ((fn self [rose]
+       (lazy-seq
+        (cons (rose/root rose)
+              (if-let [cs (seq (rose/children rose))]
+                (self (first cs))))))
      rose)))
