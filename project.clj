@@ -1,4 +1,4 @@
-(defproject org.clojure/test.check "0.9.0-SNAPSHOT"
+(defproject com.gfredericks.forks.org.clojure/test.check "0.9.0-p1"
   :description "A QuickCheck inspired property-based testing library."
   :url "https://github.com/clojure/test.check"
   :license {:name "Eclipse Public License"
