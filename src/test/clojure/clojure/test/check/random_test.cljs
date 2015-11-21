@@ -56,3 +56,9 @@
                  (random/rand-double (random/make-random))
                  (random/rand-double (random/make-random)))
       "Each call to make-random should return a different RNG."))
+
+(deftest rng-equality
+  (is (= (random/make-random 42)
+         (random/make-random 42)))
+  (is (not= (random/make-random 42)
+            (random/make-random 43))))

@@ -10,20 +10,32 @@
 (ns clojure.test.check.rose-tree
   "A lazy tree data structure used for shrinking."
   (:refer-clojure :exclude [filter remove seq])
-  (:require [cljs.core :as core]))
+  (:require [#?(:clj clojure.core :cljs cljs.core) :as core]))
 
-(deftype RoseTree [root children])
+(deftype RoseTree [root children]
+  #?(:clj  clojure.lang.Indexed
+     :cljs IIndexed)
+  (#?(:clj nth :cljs -nth) [this i]
+    (cond (= i 0) root
+          (= i 1) children
+          :else (throw #?(:clj  (IndexOutOfBoundsException.)
+                          :cljs (js/Error. "Index out of bounds in rose tree")))))
+
+  (#?(:clj nth :cljs -nth) [this i not-found]
+    (cond (= i 0) root
+          (= i 1) children
+          :else not-found)))
 
 (defn root
   "Returns the root of a Rose tree."
   {:no-doc true}
-  [rose]
+  [^RoseTree rose]
   (.-root rose))
 
 (defn children
   "Returns the children of the root of the Rose tree."
   {:no-doc true}
-  [rose]
+  [^RoseTree rose]
   (.-children rose))
 
 (defn make-rose
@@ -52,6 +64,7 @@
     (make-rose inner-root (concat (map join outer-children)
                                   inner-children))))
 
+
 (defn pure
   "Puts a value `x` into a Rose tree, with no children."
   {:no-doc true}
@@ -63,6 +76,18 @@
   {:no-doc true}
   [f rose]
   (make-rose (f (root rose)) (map #(fmap f %) (children rose))))
+
+(defn fmap-indexed
+  "Applies function `f` to all values in the tree, passing the
+  path to the current node as the first argument."
+  ([f rose] (fmap-indexed f rose []))
+  ([f [root children] path]
+   (make-rose
+    (f path root)
+    (core/map-indexed
+     (fn [i rose]
+       (fmap-indexed f rose (conj path i)))
+     children))))
 
 (defn bind
   "Takes a Rose tree (m) and a function (k) from

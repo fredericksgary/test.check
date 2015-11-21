@@ -11,20 +11,23 @@
   (:require [clojure.test.check.generators :as gen]
             [clojure.test.check.clojure-test :as ct]
             [clojure.test.check.random :as random]
-            [clojure.test.check.rose-tree :as rose]))
+            [clojure.test.check.rose-tree :as rose]
+            [clojure.test.check.impl :refer [get-current-time-millis
+                                             exception-like?]]))
 
 (declare shrink-loop failure)
 
 (defn- check-interrupts
   [msg]
-  (when (Thread/interrupted)
-    (throw (InterruptedException. msg))))
+  #?(:clj
+     (when (Thread/interrupted)
+       (throw (InterruptedException. msg)))))
 
 (defn- make-rng
   [seed]
   (if seed
     [seed (random/make-random seed)]
-    (let [non-nil-seed (System/currentTimeMillis)]
+    (let [non-nil-seed (get-current-time-millis)]
       [non-nil-seed (random/make-random non-nil-seed)])))
 
 (defn- complete
@@ -35,7 +38,7 @@
 (defn- not-falsey-or-exception?
   "True if the value is not falsy or an exception"
   [value]
-  (and value (not (instance? Throwable value))))
+  (and value (not (exception-like? value))))
 
 (defn quick-check
   "Tests `property` `num-tests` times.
@@ -53,19 +56,17 @@
       (quick-check 100 p)
   "
   [num-tests property & {:keys [seed max-size] :or {max-size 200}}]
-  (let [seed (or seed (System/currentTimeMillis))
+  (let [seed (or seed (get-current-time-millis))
         key-seq (gen/make-key-seq seed max-size)]
-    (loop [so-far 0, key-seq key-seq]
-      (check-interrupts "quick-check interrupted!")
+    (loop [so-far 0
+           key-seq key-seq]
+      (check-interrupts "quick-check interrupted")
       (if (== so-far num-tests)
         (complete property num-tests seed)
         (let [[key & keys] key-seq
-              result-map-rose (gen/call-key-with-meta
-                               property
-                               key)
-              result-map-rose (rose/fmap
-                               #(update-in % [:result] deref)
-                               result-map-rose)
+              result-map-rose (gen/call-key-with-meta property key)
+              result-map-rose (rose/fmap #(update % :result deref)
+                                         result-map-rose)
               result-map (rose/root result-map-rose)
               result (:result result-map)
               args (:args result-map)]
@@ -73,10 +74,7 @@
             (do
               (ct/report-trial property so-far num-tests)
               (recur (inc so-far) keys))
-            (failure property
-                     result-map-rose
-                     so-far
-                     (second key))))))))
+            (failure property result-map-rose so-far (second key))))))))
 
 (defn- smallest-shrink
   [total-nodes-visited depth smallest]
@@ -126,15 +124,20 @@
               (println "Smaller:" (-> head rose/root meta :key))
               (flush)
               (if-let [children (seq (rose/children head))]
-              (recur children (rose/root head) (inc total-nodes-visited) (inc depth))
-              (recur tail (rose/root head) (inc total-nodes-visited) depth)))))))))
+                (recur children (rose/root head) (inc total-nodes-visited) (inc depth))
+                (recur tail (rose/root head) (inc total-nodes-visited) depth)))))))))
 
 (defn- failure
   [property failing-rose-tree trial-number size]
   (let [root (rose/root failing-rose-tree)
         result (:result root)
         failing-args (:args root)]
-    (printf "test.check test failed! (%s)\n" (print-str property))
+
+    (let [property-string (or (:property-name (meta property))
+                              (pr-str property))]
+      ;; can't use format here because cljs?
+      (println (str "test.check test failed! (" property-string ")")))
+
     (prn {:result result :key (:key (meta root))})
     (ct/report-failure property result trial-number failing-args)
 
@@ -145,12 +148,8 @@
      :fail (vec failing-args)
      :shrunk (shrink-loop failing-rose-tree)}))
 
-;;
-;; Key-backed extra functionality
-;;
-
 (defn retry
-  "First arg can be a property or a defspec function."
+ "First arg can be a property or a defspec function."
   [prop key]
   (let [prop (-> prop meta :property (or prop))
         {:keys [result args]} (rose/root (gen/call-key-with-meta prop key))]

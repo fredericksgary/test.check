@@ -3,7 +3,8 @@
   of the tests (the random number generator) is also the primary
   internal driver of the tests, but hopefully it will still be
   meaningful."
-  (:require [clojure.test.check.clojure-test :refer [defspec]]
+  (:require [clojure.test :refer [deftest is]]
+            [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.random :as random]))
@@ -109,3 +110,9 @@
                     (conj v rng)
                     (let [[rng1 rng2] (random/split rng)]
                       (recur (conj v rng2) rng1))))))))))
+
+(deftest rng-equality
+  (is (= (random/make-random 42)
+         (random/make-random 42)))
+  (is (not= (random/make-random 42)
+            (random/make-random 43))))

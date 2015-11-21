@@ -8,13 +8,15 @@
 ;   You must not remove this notice, or any other, from this software.
 
 (ns clojure.test.check.clojure-test
-  (:require-macros clojure.test.check.clojure-test)
-  (:require [cljs.test :as ct :include-macros true]))
+  (:require #?(:clj  [clojure.test :as ct]
+               :cljs [cljs.test :as ct :include-macros true])
+            [clojure.test.check.impl :refer [get-current-time-millis
+                                             exception-like?]]))
 
-(defn- assert-check
+(defn assert-check
   [{:keys [result] :as m}]
   (prn m)
-  (if (instance? js/Error result)
+  (if (exception-like? result)
     (throw result)
     (ct/is result)))
 
@@ -30,6 +32,41 @@
                          (assoc options :num-tests *default-test-count*))
         :else (throw (ex-info (str "Invalid defspec options: " (pr-str options))
                               {:bad-options options}))))
+
+#?(:clj
+   (defmacro defspec
+     "Defines a new clojure.test test var that uses `quick-check` to verify
+  [property] with the given [args] (should be a sequence of generators),
+  [default-times] times by default.  You can call the function defined as [name]
+  with no arguments to trigger this test directly (i.e., without starting a
+  wider clojure.test run), with a single argument that will override
+  [default-times], or with a map containing any of the keys
+  [:seed :max-size :num-tests]."
+     {:arglists '([name property] [name num-tests? property] [name options? property])}
+     ([name property] `(defspec ~name nil ~property))
+     ([name options property]
+      ;; consider my shame for introducing a cyclical dependency like this...
+      ;; Don't think we'll know what the solution is until clojure.test.check
+      ;; integration with another test framework is attempted.
+      (require 'clojure.test.check)
+
+      (let [impl-name (gensym "impl")]
+        `(let [property# (vary-meta ~property assoc :property-name
+                                    (quote ~(symbol (clojure.core/name (.getName *ns*))
+                                                    (clojure.core/name name))))
+               impl# (fn self# ([] (let [options# (process-options ~options)]
+                                     (apply self# (:num-tests options#) (apply concat options#))))
+                       ([~'times & {:keys [~'seed ~'max-size] :as ~'quick-check-opts}]
+                        (apply
+                         clojure.test.check/quick-check
+                         ~'times
+                         (vary-meta property# assoc :name (str '~property))
+                         (apply concat ~'quick-check-opts))))
+               ~impl-name (vary-meta impl# assoc :property property#)]
+           (def ~(vary-meta name assoc
+                            ::defspec true
+                            :test `#(#'assert-check (assoc (~impl-name) :test-var ~(str name))))
+             ~impl-name))))))
 
 (def ^:dynamic *report-trials*
   "Controls whether property trials should be reported via clojure.test/report.
@@ -61,14 +98,20 @@
 
 (def ^:private last-trial-report (atom 0))
 
-(let [begin-test-var-method (get-method ct/report [::ct/default :begin-test-var])]
-  (defmethod ct/report [::ct/default :begin-test-var] [m]
-    (reset! last-trial-report (.valueOf (js/Date.)))
+(let [begin-test-var-method (get-method ct/report #?(:clj  :begin-test-var
+                                                     :cljs [::ct/default :begin-test-var]))]
+  (defmethod ct/report #?(:clj  :begin-test-var
+                          :cljs [::ct/default :begin-test]) [m]
+    (reset! last-trial-report (get-current-time-millis))
     (when begin-test-var-method (begin-test-var-method m))))
 
 (defn- get-property-name
   [{property-fun ::property :as report-map}]
   (or (-> property-fun meta :name) (ct/testing-vars-str report-map)))
+
+(defn with-test-out* [f]
+  #?(:clj  (ct/with-test-out (f))
+     :cljs (f)))
 
 (defn trial-report-periodic
   "Intended to be bound as the value of `*report-trials*`; will emit a verbose
@@ -76,10 +119,13 @@
 
   Passing trial 3286 / 5000 for (your-test-var-name-here) (:)"
   [m]
-  (let [t (.valueOf (js/Date.))]
+  (let [t (get-current-time-millis)]
     (when (> (- t *trial-report-period*) @last-trial-report)
-      (println "Passing trial" (-> m ::trial first) "/" (-> m ::trial second)
-        "for" (get-property-name m))
+      (with-test-out*
+        (fn []
+          (println "Passing trial"
+                   (-> m ::trial first) "/" (-> m ::trial second)
+                   "for" (get-property-name m))))
       (reset! last-trial-report t))))
 
 (defn trial-report-dots
@@ -92,17 +138,19 @@
       (flush))
     (when (== so-far total) (println))))
 
-(defmethod ct/report [::ct/default ::trial] [m]
+(defmethod ct/report #?(:clj ::trial :cljs [::ct/default ::trial]) [m]
   (when-let [trial-report-fn (and *report-trials*
                                   (if (true? *report-trials*)
                                     trial-report-dots
                                     *report-trials*))]
     (trial-report-fn m)))
 
-(defmethod ct/report [::ct/default ::shrinking] [m]
+(defmethod ct/report #?(:clj ::shrinking :cljs [::ct/default ::shrinking]) [m]
   (when *report-shrinking*
-    (println "Shrinking" (get-property-name m)
-             "starting with parameters" (pr-str (::params m)))))
+    (with-test-out*
+      (fn []
+        (println "Shrinking" (get-property-name m)
+                 "starting with parameters" (pr-str (::params m)))))))
 
 (defn report-trial
   [property-fun so-far num-tests]
@@ -114,7 +162,7 @@
   [property-fun result trial-number failing-params]
   ;; TODO this is wrong, makes it impossible to clojure.test quickchecks that
   ;; should fail...
-  #_(ct/report (if (instance? Throwable result)
+  #_(ct/report (if (exception-like? result)
                  {:type :error
                   :message (.getMessage result)
                   :actual result}
@@ -124,4 +172,3 @@
   (ct/report {:type ::shrinking
               ::property property-fun
               ::params (vec failing-params)}))
-

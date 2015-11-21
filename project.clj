@@ -1,4 +1,4 @@
-(defproject com.gfredericks.forks.org.clojure/test.check "0.8.0-p3-SNAPSHOT"
+(defproject org.clojure/test.check "0.9.0-SNAPSHOT"
   :description "A QuickCheck inspired property-based testing library."
   :url "https://github.com/clojure/test.check"
   :license {:name "Eclipse Public License"
@@ -13,7 +13,7 @@
   :global-vars {*warn-on-reflection* true}
   :plugins [[codox "0.8.10"]
             [cider/cider-nrepl "0.8.1"]
-            [lein-cljsbuild "1.0.4-SNAPSHOT"]]
+            [lein-cljsbuild "1.1.0"]]
   :codox {:defaults {:doc/format :markdown}
           :exclude [clojure.test.check.rose-tree
                     clojure.test.check.clojure-test
@@ -21,7 +21,7 @@
   :cljsbuild
   {:builds
    [{:id "node-dev"
-     :source-paths ["src/main/clojure" "src/test/cljs"
+     :source-paths ["src/main/clojure" "src/test/clojure"
                     "src/target/cljs/node"]
      :notify-command ["node" "resources/run.js"]
      :compiler {:optimizations :none
@@ -31,7 +31,7 @@
                 :output-dir "target/cljs/node_dev/out"
                 :source-map true}}
     {:id "browser-dev"
-     :source-paths ["src/main/clojure" "src/test/cljs"
+     :source-paths ["src/main/clojure" "src/test/clojure"
                     "src/target/cljs/browser"]
      :compiler {:optimizations :none
                 :static-fns true
@@ -39,7 +39,7 @@
                 :output-dir "target/cljs/browser_dev/out"
                 :source-map true}}
     {:id "node-adv"
-     :source-paths ["src/main/clojure" "src/test/cljs"
+     :source-paths ["src/main/clojure" "src/test/clojure"
                     "src/target/cljs/node"]
      :notify-command ["node" "target/cljs/node_adv/tests.js"]
      :compiler {:optimizations :advanced
@@ -48,7 +48,7 @@
                 :output-to "target/cljs/node_adv/tests.js"
                 :output-dir "target/cljs/node_adv/out"}}
     {:id "browser-adv"
-     :source-paths ["src/main/clojure" "src/test/cljs"
+     :source-paths ["src/main/clojure" "src/test/clojure"
                     "src/target/cljs/browser"]
      :compiler {:optimizations :advanced
                 :pretty-print false
