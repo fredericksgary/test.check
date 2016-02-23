@@ -14,12 +14,15 @@
             [clojure.test.check.impl :refer [get-current-time-millis
                                              exception-like?]]))
 
-(defn assert-check
-  [{:keys [result] :as m}]
-  (prn m)
-  (if (exception-like? result)
-    (throw result)
-    (ct/is result)))
+#?(:clj
+(defmacro assert-check
+  [arg]
+  `(let [m# ~arg
+         result# (:result m#)]
+     (prn m#)
+     (if (exception-like? result#)
+       (throw result#)
+       (ct/is result#)))))
 
 (def ^:dynamic *default-test-count* 100)
 
