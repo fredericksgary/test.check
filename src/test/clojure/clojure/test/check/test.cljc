@@ -13,6 +13,7 @@
             #?(:clj
                [clojure.test :refer :all])
             [clojure.test.check :as tc]
+            [clojure.test.check.generator-generators :as gen-gen]
             [clojure.test.check.generators :as gen #?@(:cljs [:include-macros true])]
             [clojure.test.check.properties :as prop #?@(:cljs [:include-macros true])]
             [clojure.test.check.rose-tree :as rose]
@@ -250,21 +251,24 @@
   (== (count v) (count (distinct v))))
 
 (defn unique-test
-  [seed]
-  (tc/quick-check 1000
-                  (prop/for-all*
-                    [(gen/vector gen/int)] vector-elements-are-unique)
-                  :seed seed))
+  ([seed]
+   (unique-test seed (gen/vector gen/int) vector-elements-are-unique))
+  ([seed gen pred]
+   (tc/quick-check 50
+                   (prop/for-all* [gen] pred)
+                   :seed seed)))
 
-(defn equiv-runs
-  [seed]
-  (= (unique-test seed) (unique-test seed)))
+(defspec tests-are-deterministic-1 1000
+  (prop/for-all [seed gen-seed]
+    (= (unique-test seed)
+       (unique-test seed))))
 
-(deftest tests-are-deterministic
-  (testing "If two runs are started with the same seed, they should
-           return the same results."
-           (is (:result
-                 (tc/quick-check 1000 (prop/for-all* [gen/int] equiv-runs))))))
+(defspec tests-are-deterministic-2 50
+  (prop/for-all [seed gen-seed
+                 gen  gen-gen/gen-gen
+                 pred gen-gen/gen-predicate]
+    (= (unique-test seed gen pred)
+       (unique-test seed gen pred))))
 
 ;; Generating basic generators
 ;; --------------------------------------------------------------------------
@@ -947,15 +951,28 @@
 ;; TCHECK-82 Regression
 ;; ---------------------------------------------------------------------------
 
-(deftest shrinking-laziness-test
-  (testing "That the shrinking process doesn't accidentally do extra work"
-    (let [state (atom 80)
-          prop (prop/for-all [xs (gen/vector gen/large-integer)]
-                 (pos? (swap! state dec)))
-          res (tc/quick-check 100 prop :seed 42)
-          test-runs-during-shrinking (- @state)]
-      (is (= test-runs-during-shrinking
-             (get-in res [:shrunk :total-nodes-visited]))))))
+;; since the shrinking algorithm interacts with a lazy data structure,
+;; we want to make sure that it doesn't run the test any more times
+;; than it intends to
+(defspec shrinking-laziness-spec {:num-tests 200
+                                  :max-size 50}
+  (prop/for-all [gen gen-gen/gen-gen
+                 pred gen-gen/gen-predicate
+                 seed gen-seed]
+    (let [shrink-runs-counter (atom nil)
+          pred (fn [x]
+                 (let [ret (pred x)]
+                   (swap! shrink-runs-counter
+                          (fn [shrink-runs]
+                            (if shrink-runs
+                              (inc shrink-runs)
+                              (if ret nil 0))))
+                   ret))
+          prop (prop/for-all* [gen] pred)
+
+          {{:keys [total-nodes-visited]} :shrunk}
+          (tc/quick-check 40 prop :seed seed)]
+      (= @shrink-runs-counter total-nodes-visited))))
 
 ;; TCHECK-32 Regression
 ;; ---------------------------------------------------------------------------
