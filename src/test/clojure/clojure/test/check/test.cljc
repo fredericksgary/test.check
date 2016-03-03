@@ -251,10 +251,13 @@
 
 (defn unique-test
   [seed]
-  (tc/quick-check 1000
-                  (prop/for-all*
+  (->
+   (tc/quick-check 1000
+                   (prop/for-all*
                     [(gen/vector gen/int)] vector-elements-are-unique)
-                  :seed seed))
+                   :seed seed)
+   (dissoc :runtime-millis)
+   (update :shrunk dissoc :shrink-time-millis)))
 
 (defn equiv-runs
   [seed]

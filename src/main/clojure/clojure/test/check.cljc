@@ -24,13 +24,18 @@
       [non-nil-seed (random/make-random non-nil-seed)])))
 
 (defn- complete
-  [property num-trials seed]
-  {:result true :num-tests num-trials :seed seed})
+  [property num-trials seed runtime-millis]
+  {:result true :num-tests num-trials :seed seed :runtime-millis runtime-millis})
 
 (defn- not-falsey-or-exception?
   "True if the value is not falsy or an exception"
   [value]
   (and value (not (exception-like? value))))
+
+(def ^:private default-opts
+  {:max-size 200
+   :reporter-fn (constantly nil)
+   :max-shrink-time-millis Long/MAX_VALUE})
 
 (defn quick-check
   "Tests `property` `num-tests` times.
@@ -76,16 +81,17 @@
                    :reporter-fn (fn [m]
                                   (when (= :start-shrinking (:type m))
                                     (println \"Uh oh...\"))))"
-  [num-tests property & {:keys [seed max-size reporter-fn]
-                         :or {max-size 200, reporter-fn (constantly nil)}}]
-  (let [[created-seed rng] (make-rng seed)
+  [num-tests property & {:as opts}]
+  (let [start-time (get-current-time-millis)
+        {:keys [seed reporter-fn max-size] :as opts} (merge default-opts opts)
+        [created-seed rng] (make-rng seed)
         size-seq (gen/make-size-range-seq max-size)]
     (loop [so-far 0
            size-seq size-seq
            rstate rng]
       (reporter-fn {:type :start-trial})
       (if (== so-far num-tests)
-        (complete property num-tests created-seed)
+        (complete property num-tests created-seed (- (get-current-time-millis) start-time))
         (let [[size & rest-size-seq] size-seq
               [r1 r2] (random/split rstate)
               result-map-rose (gen/call-gen property r1 size)
@@ -99,12 +105,14 @@
                             :so-far so-far'
                             :num-tests num-tests})
               (recur so-far' rest-size-seq r2))
-            (failure property result-map-rose so-far size created-seed reporter-fn)))))))
+            (failure property result-map-rose so-far size created-seed start-time opts)))))))
 
 (defn- smallest-shrink
-  [total-nodes-visited depth smallest]
+  [total-nodes-visited depth smallest shrink-start-time timed-out?]
   {:total-nodes-visited total-nodes-visited
    :depth depth
+   :shrink-time-millis (- (get-current-time-millis) shrink-start-time)
+   :finished-shrinking? (not timed-out?)
    :result (:result smallest)
    :smallest (:args smallest)})
 
@@ -120,32 +128,35 @@
   * If a node fails the property, search its children
   The value returned is the left-most failing example at the depth where a
   passing example was found."
-  [rose-tree]
-  (let [shrinks-this-depth (rose/children rose-tree)]
+  [rose-tree {:keys [max-shrink-time-millis]}]
+  (let [shrink-start-time (get-current-time-millis)
+        shrinks-this-depth (rose/children rose-tree)]
     (loop [nodes shrinks-this-depth
            current-smallest (rose/root rose-tree)
            total-nodes-visited 0
            depth 0]
       (if (empty? nodes)
-        (smallest-shrink total-nodes-visited depth current-smallest)
-        (let [;; can't destructure here because that could force
-              ;; evaluation of (second nodes)
-              head (first nodes)
-              tail (rest nodes)
-              result (:result (rose/root head))]
-          (if (not-falsey-or-exception? result)
-            ;; this node passed the test, so now try testing its right-siblings
-            (recur tail current-smallest (inc total-nodes-visited) depth)
-            ;; this node failed the test, so check if it has children,
-            ;; if so, traverse down them. If not, save this as the best example
-            ;; seen now and then look at the right-siblings
-            ;; children
-            (if-let [children (seq (rose/children head))]
-              (recur children (rose/root head) (inc total-nodes-visited) (inc depth))
-              (recur tail (rose/root head) (inc total-nodes-visited) depth))))))))
+        (smallest-shrink total-nodes-visited depth current-smallest shrink-start-time false)
+        (if (< max-shrink-time-millis (- (get-current-time-millis) shrink-start-time))
+          (smallest-shrink total-nodes-visited depth current-smallest shrink-start-time true)
+          (let [;; can't destructure here because that could force
+                ;; evaluation of (second nodes)
+                head (first nodes)
+                tail (rest nodes)
+                result (:result (rose/root head))]
+            (if (not-falsey-or-exception? result)
+              ;; this node passed the test, so now try testing its right-siblings
+              (recur tail current-smallest (inc total-nodes-visited) depth)
+              ;; this node failed the test, so check if it has children,
+              ;; if so, traverse down them. If not, save this as the best example
+              ;; seen now and then look at the right-siblings
+              ;; children
+              (if-let [children (seq (rose/children head))]
+                (recur children (rose/root head) (inc total-nodes-visited) (inc depth))
+                (recur tail (rose/root head) (inc total-nodes-visited) depth)))))))))
 
 (defn- failure
-  [property failing-rose-tree trial-number size seed reporter-fn]
+  [property failing-rose-tree trial-number size seed start-time-millis {:keys [reporter-fn] :as opts}]
   (let [root (rose/root failing-rose-tree)
         result (:result root)
         failing-args (:args root)]
@@ -161,4 +172,4 @@
      :failing-size size
      :num-tests (inc trial-number)
      :fail (vec failing-args)
-     :shrunk (shrink-loop failing-rose-tree)}))
+     :shrunk (shrink-loop failing-rose-tree opts)}))
