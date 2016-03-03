@@ -256,7 +256,7 @@
                    (prop/for-all*
                     [(gen/vector gen/int)] vector-elements-are-unique)
                    :seed seed)
-   (dissoc :runtime-millis)
+   (dissoc :runtime-before-shrinking-millis)
    (update :shrunk dissoc :shrink-time-millis)))
 
 (defn equiv-runs

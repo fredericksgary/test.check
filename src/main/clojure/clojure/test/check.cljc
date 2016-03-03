@@ -86,10 +86,10 @@
         {:keys [seed reporter-fn max-size] :as opts} (merge default-opts opts)
         [created-seed rng] (make-rng seed)
         size-seq (gen/make-size-range-seq max-size)]
+    (reporter-fn {:type :start-test})
     (loop [so-far 0
            size-seq size-seq
            rstate rng]
-      (reporter-fn {:type :start-trial})
       (if (== so-far num-tests)
         (complete property num-tests created-seed (- (get-current-time-millis) start-time))
         (let [[size & rest-size-seq] size-seq
@@ -159,7 +159,8 @@
   [property failing-rose-tree trial-number size seed start-time-millis {:keys [reporter-fn] :as opts}]
   (let [root (rose/root failing-rose-tree)
         result (:result root)
-        failing-args (:args root)]
+        failing-args (:args root)
+        runtime-before-shrinking (- (get-current-time-millis) start-time-millis)]
 
     (reporter-fn {:type :failure
                   :property property
@@ -172,4 +173,5 @@
      :failing-size size
      :num-tests (inc trial-number)
      :fail (vec failing-args)
+     :runtime-before-shrinking-millis runtime-before-shrinking
      :shrunk (shrink-loop failing-rose-tree opts)}))
