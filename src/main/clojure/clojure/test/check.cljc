@@ -12,7 +12,8 @@
             [clojure.test.check.random :as random]
             [clojure.test.check.rose-tree :as rose]
             [clojure.test.check.impl :refer [get-current-time-millis
-                                             exception-like?]]))
+                                             exception-like?]])
+  (:import (java.util.concurrent TimeUnit ArrayBlockingQueue)))
 
 (declare shrink-loop failure)
 
@@ -84,30 +85,110 @@
                    :reporter-fn (fn [m]
                                   (when (= :failure (:type m))
                                     (println \"Uh oh...\"))))"
-  [num-tests property & {:keys [seed max-size reporter-fn]
-                         :or {max-size 200, reporter-fn (constantly nil)}}]
+  [num-tests property & {:keys [seed max-size reporter-fn nthreads]
+                         :or {max-size 200, reporter-fn (constantly nil)
+                              nthreads 2 #_ 1}}]
+  ;; should there be an option to use the number of CPUs available?
+  ;; or a function thereof? :/
   (let [[created-seed rng] (make-rng seed)
-        size-seq (gen/make-size-range-seq max-size)]
-    (loop [so-far 0
-           size-seq size-seq
-           rstate rng]
-      (if (== so-far num-tests)
-        (complete property num-tests created-seed reporter-fn)
-        (let [[size & rest-size-seq] size-seq
-              [r1 r2] (random/split rstate)
-              result-map-rose (gen/call-gen property r1 size)
-              result-map (rose/root result-map-rose)
-              result (:result result-map)
-              args (:args result-map)
-              so-far (inc so-far)]
-          (if (not-falsey-or-exception? result)
-            (do
-              (reporter-fn {:type :trial
-                            :property property
-                            :so-far so-far
-                            :num-tests num-tests})
-              (recur so-far rest-size-seq r2))
-            (failure property result-map-rose so-far size created-seed reporter-fn)))))))
+        test-args (take num-tests
+                        (map vector
+                             (rest (range))
+                             (gen/make-size-range-seq max-size)
+                             ((fn f [r]
+                                (lazy-seq
+                                 (let [[r1 r2] (random/split r)]
+                                   (cons r1 (f r2)))))
+                              rng)))]
+    (if (= 1 nthreads)
+      (or (reduce (fn [_ [so-far size rng]]
+                    (let [result-map-rose (gen/call-gen property rng size)
+                          result-map (rose/root result-map-rose)
+                          result (:result result-map)]
+                      (if (not-falsey-or-exception? result)
+                        (do
+                          (reporter-fn {:type :trial
+                                        :property property
+                                        :so-far so-far
+                                        :num-tests num-tests})
+                          nil)
+                        (reduced
+                         (failure property result-map-rose so-far size created-seed reporter-fn)))))
+                  nil
+                  test-args)
+          (complete property num-tests created-seed reporter-fn))
+      (let [test-args-queue (ArrayBlockingQueue. 100)
+            results-queue (ArrayBlockingQueue. 100)
+            done? (atom false)]
+        (try
+          (future
+            (loop [[test-arg & more :as test-args] test-args]
+              (when (and test-arg (not @done?))
+                (if (.offer test-args-queue test-arg 1 TimeUnit/SECONDS)
+                  (recur more)
+                  (recur test-args)))))
+          ;; should we cache thread pools somehow?
+          (dotimes [_ nthreads]
+            (.start (Thread. (fn []
+                               (when-not @done?
+                                 ;; this is terrible; it takes this
+                                 ;; batch of threads a whole second to
+                                 ;; shut down
+
+                                 ;; TODO: um we need error handling here
+                                 (when-let [[so-far size rng :as test-arg]
+                                            (.poll test-args-queue 1 TimeUnit/SECONDS)]
+                                   (let [result-map-rose (gen/call-gen property rng size)
+                                         ret (conj test-arg result-map-rose)]
+                                     (loop []
+                                       (or (.offer results-queue ret 1 TimeUnit/SECONDS)
+                                           (and (not @done?)
+                                                (recur)))))))
+                               (recur)))))
+
+          (loop [max-test-num-seen 0
+                 missing-test-nums (sorted-set)
+                 so-far 1
+                 maybe-first-failing-result nil]
+            (if (and (= max-test-num-seen num-tests) (empty? missing-test-nums))
+              (complete property num-tests created-seed reporter-fn)
+              (if-let [[test-num size rng result-map-rose :as result]
+                       (.poll results-queue 1 TimeUnit/SECONDS)]
+                (let [missing-test-nums'
+                      (-> missing-test-nums
+                          (disj test-num)
+                          (into (range (inc max-test-num-seen) test-num)))]
+                  (if (not-falsey-or-exception? (:result (rose/root result-map-rose)))
+                    (do
+                      (reporter-fn {:type :trial
+                                    :property property
+                                    :so-far so-far
+                                    :num-tests num-tests})
+                      (if (and maybe-first-failing-result
+                               (empty? (subseq missing-test-nums' < test-num)))
+                        (let [[test-num size rng result-map-rose] maybe-first-failing-result]
+                          (failure property result-map-rose test-num size created-seed reporter-fn))
+                        (recur (max max-test-num-seen test-num)
+                               missing-test-nums'
+                               (inc so-far)
+                               maybe-first-failing-result)))
+                    (do
+                      (reset! done? true)
+                      (if (and maybe-first-failing-result
+                               (< (first maybe-first-failing-result) test-num))
+                        (recur (max max-test-num-seen test-num)
+                               missing-test-nums'
+                               (inc so-far)
+                               maybe-first-failing-result)
+                        (if (empty? (subseq missing-test-nums' < test-num))
+                          (failure property result-map-rose so-far size created-seed reporter-fn)
+                          (recur (max max-test-num-seen test-num)
+                                 missing-test-nums'
+                                 (inc so-far)
+                                 result))))))
+                (recur max-test-num-seen missing-test-nums so-far maybe-first-failing-result))))
+          (finally
+            (reset! done? true)))))))
 
 (defn- smallest-shrink
   [total-nodes-visited depth smallest]
