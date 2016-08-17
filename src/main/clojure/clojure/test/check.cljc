@@ -87,19 +87,19 @@
                                     (println \"Uh oh...\"))))"
   [num-tests property & {:keys [seed max-size reporter-fn nthreads]
                          :or {max-size 200, reporter-fn (constantly nil)
-                              nthreads 2 #_ 1}}]
+                              nthreads 1}}]
   ;; should there be an option to use the number of CPUs available?
   ;; or a function thereof? :/
   (let [[created-seed rng] (make-rng seed)
-        test-args (take num-tests
-                        (map vector
-                             (rest (range))
-                             (gen/make-size-range-seq max-size)
-                             ((fn f [r]
-                                (lazy-seq
-                                 (let [[r1 r2] (random/split r)]
-                                   (cons r1 (f r2)))))
-                              rng)))]
+        test-args (fn [] (take num-tests
+                               (map vector
+                                    (rest (range))
+                                    (gen/make-size-range-seq max-size)
+                                    ((fn f [r]
+                                       (lazy-seq
+                                        (let [[r1 r2] (random/split r)]
+                                          (cons r1 (f r2)))))
+                                     rng))))]
     (if (= 1 nthreads)
       (or (reduce (fn [_ [so-far size rng]]
                     (let [result-map-rose (gen/call-gen property rng size)
@@ -115,45 +115,45 @@
                         (reduced
                          (failure property result-map-rose so-far size created-seed reporter-fn)))))
                   nil
-                  test-args)
+                  (test-args))
           (complete property num-tests created-seed reporter-fn))
       (let [test-args-queue (ArrayBlockingQueue. 100)
             results-queue (ArrayBlockingQueue. 100)
             done? (atom false)]
         (try
           (future
-            (loop [[test-arg & more :as test-args] test-args]
+            (loop [[test-arg & more :as test-args] (test-args)]
               (when (and test-arg (not @done?))
-                (if (.offer test-args-queue test-arg 1 TimeUnit/SECONDS)
+                (if (.offer test-args-queue test-arg 1 TimeUnit/MILLISECONDS)
                   (recur more)
                   (recur test-args)))))
-          ;; should we cache thread pools somehow?
+          ;; how do we pool the threads without preventing concurrent
+          ;; calls of quick-check or successive calls with different
+          ;; values of :nthreads?
           (dotimes [_ nthreads]
-            (.start (Thread. (fn []
+            (.start (Thread. (bound-fn []
                                (when-not @done?
-                                 ;; this is terrible; it takes this
-                                 ;; batch of threads a whole second to
-                                 ;; shut down
-
-                                 ;; TODO: um we need error handling here
+                                 ;; TODO: um we need error handling
+                                 ;; here too for when generators
+                                 ;; throw exceptions
                                  (when-let [[so-far size rng :as test-arg]
-                                            (.poll test-args-queue 1 TimeUnit/SECONDS)]
+                                            (.poll test-args-queue 1 TimeUnit/MILLISECONDS)]
                                    (let [result-map-rose (gen/call-gen property rng size)
                                          ret (conj test-arg result-map-rose)]
                                      (loop []
-                                       (or (.offer results-queue ret 1 TimeUnit/SECONDS)
+                                       (or (.offer results-queue ret 1 TimeUnit/MILLISECONDS)
                                            (and (not @done?)
-                                                (recur)))))))
-                               (recur)))))
+                                                (recur))))))
+                                 (recur))))))
 
           (loop [max-test-num-seen 0
                  missing-test-nums (sorted-set)
                  so-far 1
                  maybe-first-failing-result nil]
-            (if (and (= max-test-num-seen num-tests) (empty? missing-test-nums))
+            (if (and (>= max-test-num-seen num-tests) (empty? missing-test-nums))
               (complete property num-tests created-seed reporter-fn)
               (if-let [[test-num size rng result-map-rose :as result]
-                       (.poll results-queue 1 TimeUnit/SECONDS)]
+                       (.poll results-queue 1 TimeUnit/MILLISECONDS)]
                 (let [missing-test-nums'
                       (-> missing-test-nums
                           (disj test-num)
@@ -173,7 +173,7 @@
                                (inc so-far)
                                maybe-first-failing-result)))
                     (do
-                      (reset! done? true)
+                      (reset! done? :failure)
                       (if (and maybe-first-failing-result
                                (< (first maybe-first-failing-result) test-num))
                         (recur (max max-test-num-seen test-num)
@@ -188,7 +188,7 @@
                                  result))))))
                 (recur max-test-num-seen missing-test-nums so-far maybe-first-failing-result))))
           (finally
-            (reset! done? true)))))))
+            (reset! done? :finally)))))))
 
 (defn- smallest-shrink
   [total-nodes-visited depth smallest]
