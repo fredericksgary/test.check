@@ -121,72 +121,77 @@
             results-queue (ArrayBlockingQueue. 100)
             done? (atom false)]
         (try
-          (future
-            (loop [[test-arg & more :as test-args] (test-args)]
-              (when (and test-arg (not @done?))
-                (if (.offer test-args-queue test-arg 1 TimeUnit/MILLISECONDS)
-                  (recur more)
-                  (recur test-args)))))
-          ;; how do we pool the threads without preventing concurrent
-          ;; calls of quick-check or successive calls with different
-          ;; values of :nthreads?
-          (dotimes [_ nthreads]
-            (.start (Thread. (bound-fn []
-                               (when-not @done?
-                                 ;; TODO: um we need error handling
-                                 ;; here too for when generators
-                                 ;; throw exceptions
-                                 (when-let [[so-far size rng :as test-arg]
-                                            (.poll test-args-queue 1 TimeUnit/MILLISECONDS)]
-                                   (let [result-map-rose (gen/call-gen property rng size)
-                                         ret (conj test-arg result-map-rose)]
-                                     (loop []
-                                       (or (.offer results-queue ret 1 TimeUnit/MILLISECONDS)
-                                           (and (not @done?)
-                                                (recur))))))
-                                 (recur))))))
+          (let [worker-loop
+                (fn []
+                  (when-not @done?
+                    ;; TODO: um we need error handling
+                    ;; here too for when generators
+                    ;; throw exceptions
+                    (when-let [[so-far size rng :as test-arg]
+                               (.poll test-args-queue 1 TimeUnit/MILLISECONDS)]
+                      (let [result-map-rose (gen/call-gen property rng size)
+                            ret (conj test-arg result-map-rose)]
+                        (loop []
+                          (or (.offer results-queue ret 1 TimeUnit/MILLISECONDS)
+                              (and (not @done?)
+                                   (recur))))))
+                    (recur)))
 
-          (loop [max-test-num-seen 0
-                 missing-test-nums (sorted-set)
-                 so-far 1
-                 maybe-first-failing-result nil]
-            (if (and (>= max-test-num-seen num-tests) (empty? missing-test-nums))
-              (complete property num-tests created-seed reporter-fn)
-              (if-let [[test-num size rng result-map-rose :as result]
-                       (.poll results-queue 1 TimeUnit/MILLISECONDS)]
-                (let [missing-test-nums'
-                      (-> missing-test-nums
-                          (disj test-num)
-                          (into (range (inc max-test-num-seen) test-num)))]
-                  (if (not-falsey-or-exception? (:result (rose/root result-map-rose)))
-                    (do
-                      (reporter-fn {:type :trial
-                                    :property property
-                                    :so-far so-far
-                                    :num-tests num-tests})
-                      (if (and maybe-first-failing-result
-                               (empty? (subseq missing-test-nums' < test-num)))
-                        (let [[test-num size rng result-map-rose] maybe-first-failing-result]
-                          (failure property result-map-rose test-num size created-seed reporter-fn))
-                        (recur (max max-test-num-seen test-num)
-                               missing-test-nums'
-                               (inc so-far)
-                               maybe-first-failing-result)))
-                    (do
-                      (reset! done? :failure)
-                      (if (and maybe-first-failing-result
-                               (< (first maybe-first-failing-result) test-num))
-                        (recur (max max-test-num-seen test-num)
-                               missing-test-nums'
-                               (inc so-far)
-                               maybe-first-failing-result)
-                        (if (empty? (subseq missing-test-nums' < test-num))
-                          (failure property result-map-rose so-far size created-seed reporter-fn)
-                          (recur (max max-test-num-seen test-num)
-                                 missing-test-nums'
-                                 (inc so-far)
-                                 result))))))
-                (recur max-test-num-seen missing-test-nums so-far maybe-first-failing-result))))
+                futures
+                (doall (repeatedly nthreads #(future (worker-loop))))]
+
+            (try
+              (loop [test-args (test-args)
+                     max-test-num-seen 0
+                     missing-test-nums (sorted-set)
+                     so-far 1
+                     maybe-first-failing-result nil]
+                (if (and (>= max-test-num-seen num-tests) (empty? missing-test-nums))
+                  (complete property num-tests created-seed reporter-fn)
+                  (let [test-args' (when-let [[test-arg & more] (seq test-args)]
+                                     (if (.offer test-args-queue test-arg 1 TimeUnit/MILLISECONDS)
+                                       more
+                                       test-args))]
+                    (if-let [[test-num size rng result-map-rose :as result]
+                             (.poll results-queue 1 TimeUnit/MILLISECONDS)]
+                      (let [missing-test-nums'
+                            (-> missing-test-nums
+                                (disj test-num)
+                                (into (range (inc max-test-num-seen) test-num)))]
+                        (if (not-falsey-or-exception? (:result (rose/root result-map-rose)))
+                          (do
+                            (reporter-fn {:type :trial
+                                          :property property
+                                          :so-far so-far
+                                          :num-tests num-tests})
+                            (if (and maybe-first-failing-result
+                                     (empty? (subseq missing-test-nums' < test-num)))
+                              (let [[test-num size rng result-map-rose] maybe-first-failing-result]
+                                (failure property result-map-rose test-num size created-seed reporter-fn))
+                              (recur test-args'
+                                     (max max-test-num-seen test-num)
+                                     missing-test-nums'
+                                     (inc so-far)
+                                     maybe-first-failing-result)))
+                          (do
+                            (reset! done? :failure)
+                            (if (and maybe-first-failing-result
+                                     (< (first maybe-first-failing-result) test-num))
+                              (recur test-args'
+                                     (max max-test-num-seen test-num)
+                                     missing-test-nums'
+                                     (inc so-far)
+                                     maybe-first-failing-result)
+                              (if (empty? (subseq missing-test-nums' < test-num))
+                                (failure property result-map-rose so-far size created-seed reporter-fn)
+                                (recur test-args'
+                                       (max max-test-num-seen test-num)
+                                       missing-test-nums'
+                                       (inc so-far)
+                                       result))))))
+                      (recur test-args' max-test-num-seen missing-test-nums so-far maybe-first-failing-result)))))
+              (finally
+                (doseq [f futures] (future-cancel f)))))
           (finally
             (reset! done? :finally)))))))
 
