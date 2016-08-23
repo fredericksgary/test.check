@@ -1007,6 +1007,42 @@
                (reverse (sort shrunk-args)))
             "failing steps args are sorted in descending order")))))
 
+;; nthreads
+;; ---------------------------------------------------------------------------
+
+#?(:clj
+(defspec concurrent-determinism
+  (let [often-failing-prop
+        ;; fails about 3/4 of the time at 100 trials
+        (prop/for-all [xs (gen/list gen/large-integer)]
+          (> 3 (->> xs
+                    (frequencies)
+                    (filter #(< 1 (val %)))
+                    (count))))]
+    (prop/for-all [seed gen-seed]
+      (->> (range 1 10)
+           (map (fn [nthreads]
+                  (tc/quick-check 100 often-failing-prop
+                                  :seed seed
+                                  :nthreads nthreads)))
+           (map (juxt :result :fail (comp :smallest :shrunk)))
+           (apply =))))))
+
+#?(:clj
+(deftest nthreads-runs-tests-on-different-threads
+  (letfn [(collect-thread-ids [nthreads]
+            (let [a (atom #{})]
+              (tc/quick-check 10000
+                              (prop/for-all [thread-id
+                                             (gen/fmap (fn [_]
+                                                         (.getId (Thread/currentThread)))
+                                                       (gen/return nil))]
+                                (swap! a conj thread-id))
+                              :nthreads nthreads)
+              @a))]
+    (doseq [nthreads (range 1 10)]
+      (is (= nthreads (count (collect-thread-ids nthreads))))))))
+
 ;; TCHECK-77 Regression
 ;; ---------------------------------------------------------------------------
 
