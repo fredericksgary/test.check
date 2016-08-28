@@ -146,6 +146,10 @@
                      missing-test-nums (sorted-set)
                      so-far 1
                      maybe-first-failing-result nil]
+                (->> futures
+                     (filter future-done?)
+                     (map deref)
+                     (dorun))
                 (if (and (>= max-test-num-seen num-tests) (empty? missing-test-nums))
                   (complete property num-tests created-seed reporter-fn)
                   (let [test-args' (when-let [[test-arg & more] (seq test-args)]

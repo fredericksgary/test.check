@@ -1043,6 +1043,15 @@
     (doseq [nthreads (range 1 10)]
       (is (= nthreads (count (collect-thread-ids nthreads))))))))
 
+
+#?(:clj
+   (deftest multithreaded-quickcheck-handles-generator-exceptions
+     (let [prop (prop/for-all [x (gen/let [x gen/nat]
+                                   (throw (Exception. "ACK!")))]
+                  x)]
+       (is (thrown-with-msg? Exception #"ACK!"
+                             (tc/quick-check 100 prop :nthreads 2))))))
+
 ;; TCHECK-77 Regression
 ;; ---------------------------------------------------------------------------
 
