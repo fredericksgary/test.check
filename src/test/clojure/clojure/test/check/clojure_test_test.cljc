@@ -112,7 +112,7 @@
       (is (= trial-report-1 @last-trial-report)
           "calling with other :type keeps last-trial-report constant")
       (is (re-seq
-           #"(Passing trial \d{3} / 1000 for .+\n)+"
+           #"(Passing trial \d{3} / 1000 for long-running-spec\n)+"
            (second
             (capture-test-var #'long-running-spec))))
       (is (> @last-trial-report trial-report-1)
@@ -123,12 +123,8 @@
           (capture-test-var #'this-is-supposed-to-fail))]
     (is (== 1 (:fail report-counters)))
     (is (re-seq
-         #?(:clj
-            (java.util.regex.Pattern/compile "(?s)Shrinking vector-elements-are-unique starting with parameters \\[\\[.+")
-
-            :cljs
-            #"Shrinking vector-elements-are-unique starting with parameters \[\[[\s\S]+")
-         stdout)))
+          #"Shrinking this-is-supposed-to-fail starting with parameters \[\[[\s\S]+"
+          stdout)))
 
   (test/testing "exceptions in properties are re-thrown to clojure.test"
     (let [[report-counters stdout]
