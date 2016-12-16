@@ -12,7 +12,7 @@
   (:refer-clojure :exclude [filter remove seq])
   (:require [#?(:clj clojure.core :cljs cljs.core) :as core]))
 
-(deftype RoseTree [root children]
+(deftype RoseTree [root children xform]
   #?(:clj  clojure.lang.Indexed
      :cljs IIndexed)
   (#?(:clj nth :cljs -nth) [this i]
@@ -36,11 +36,14 @@
   "Returns the children of the root of the Rose tree."
   {:no-doc true}
   [^RoseTree rose]
-  (.-children rose))
+  (sequence (.-children rose) (.-xform rose)))
 
 (defn make-rose
-  [root children]
-  (RoseTree. root children))
+  ([root children]
+   ;; could make this nil instead of identity to save the extra call
+   (RoseTree. root children identity))
+  ([root children xform]
+   (RoseTree. root children xform)))
 
 (defn- exclude-nth
   "Exclude the nth value in a collection."
@@ -61,6 +64,7 @@
         outer-children (children rose)
         inner-root (root outer-root)
         inner-children (children outer-root)]
+    ;; how do we handle having different xforms here?
     (make-rose inner-root (concat (map join outer-children)
                                   inner-children))))
 
