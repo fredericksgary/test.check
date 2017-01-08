@@ -9,8 +9,9 @@
 
 (ns ^{:author "Gary Fredericks"
       :doc "Purely functional and splittable pseudo-random number generators."}
- clojure.test.check.random
-  (:refer-clojure :exclude [unsigned-bit-shift-right]))
+    clojure.test.check.random
+  (:refer-clojure :exclude [unsigned-bit-shift-right reduce])
+  (:require [clojure.core :as core]))
 
 (defprotocol IRandom
   (rand-long [rng]
@@ -35,7 +36,8 @@
   sufficiently independent random data.
 
   Note: to maintain independence you should not call more than one
-  function in the IRandom protocol with the same argument"))
+  function in the IRandom protocol with the same argument")
+  (reduce* [rng f init]))
 
 ;; Immutable version of Java 8's java.util.SplittableRandom
 ;;
@@ -139,6 +141,19 @@
           gamma' (mix-gamma state'')]
       [(JavaUtilSplittableRandom. gamma state'')
        (JavaUtilSplittableRandom. gamma' (mix-64 state'))]))
+  (reduce* [this f init]
+    (loop [reduce-state init
+           gamma gamma
+           state state]
+      (let [state' (+ gamma state)
+            state'' (+ gamma state')
+            x (-> state'' (+ gamma) (mix-64))
+            reduce-state' (f reduce-state x)]
+        (if (reduced? reduce-state')
+          (deref reduce-state')
+          (recur reduce-state'
+                 (mix-gamma state'')
+                 (mix-64 state'))))))
   (split-n [this n]
     ;; immitates a particular series of 2-way splits, but avoids the
     ;; intermediate allocation. See the `split-n-spec` for a test of
@@ -159,6 +174,8 @@
                     gamma' (mix-gamma state'')
                     new-rng (JavaUtilSplittableRandom. gamma' (mix-64 state'))]
                 (recur state'' (conj! ret new-rng))))))))))
+
+(defn reduce [f init rng] (reduce* rng f init))
 
 (def ^:private golden-gamma
   (longify 0x9e3779b97f4a7c15))

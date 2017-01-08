@@ -79,6 +79,16 @@
    (fn [rnd size]
      (mapv #(call-gen % %2 size) gens (random/split-n rnd (count gens))))))
 
+(defn- gen-tuple-same
+  "Takes a collection of generators and returns a generator of vectors."
+  [num gen]
+  (make-gen
+   (fn [rnd size]
+     (rand/reduce (fn [v ^long x]
+                    ))
+     #_
+     (mapv #(call-gen % %2 size) gens (random/split-n rnd (count gens))))))
+
 ;; Exported generator functions
 ;; ---------------------------------------------------------------------------
 
@@ -221,6 +231,16 @@
   (make-gen
    (fn [rnd size]
      (core/let [sized-gen (sized-gen size)]
+       (call-gen sized-gen rnd size)))))
+
+(defn randed
+  "Create a generator that depends on the size parameter.
+  `sized-gen` is a function that takes an integer and returns
+  a generator."
+  [sized-gen]
+  (make-gen
+   (fn [rnd size]
+     (core/let [sized-gen (sized-gen rnd)]
        (call-gen sized-gen rnd size)))))
 
 ;; Combinators and helpers
@@ -490,8 +510,7 @@
    (gen-bind
     (sized #(choose 0 %))
     (fn [num-elements-rose]
-      (gen-bind (gen-tuple (repeat (rose/root num-elements-rose)
-                                   generator))
+      (gen-bind (gen-tuple-same (rose/root num-elements-rose) generator)
                 (fn [roses]
                   (gen-pure (rose/shrink-vector core/vector
                                                 roses)))))))
@@ -513,6 +532,9 @@
                      (gen-pure (rose/filter
                                 (fn [v] (and (>= (count v) min-elements)
                                              (<= (count v) max-elements))) rose))))))))))
+
+#_(defn reducible
+  "Like gen/vector, but returns an opaque reducible and countable object.")
 
 (defn list
   "Like `vector`, but generates lists."
@@ -1196,6 +1218,18 @@
 
 (def char-alphanumeric
   "Generate alphanumeric characters."
+  (fmap (fn [^long x]
+          (core/char
+           (cond (< x 10)
+                 (+ 48 x)
+
+                 (< x 36)
+                 (+ x 55)
+
+                 true
+                 (+ x 61))))
+        (choose 0 61))
+#_
   (fmap core/char
         (one-of [(choose 48 57)
                  (choose 65 90)
