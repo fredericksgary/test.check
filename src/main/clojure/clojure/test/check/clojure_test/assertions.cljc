@@ -23,7 +23,17 @@
          {:file (.getFileName s) :line (.getLineNumber s)})
        {:file nil :line nil})))
 
-(defn check-results [{:keys [result] :as m}]
+#?(:cljs
+   (defn file-and-line**
+     [stack-string]
+     (if-let [[_ file line] (re-find #"\bat \S+ \(([^\)]+):(\d+):(\d+)\)" stack-string)]
+       (doto {:file file :line line} prn)
+       (do
+         (prn stack-string)
+         {:file "unknown" :line "unknown"}))))
+
+(defn check-results
+  [{:keys [result] :as m} & [js-error]]
   (if (results/passing? result)
     (t/do-report
       {:type :pass
@@ -34,12 +44,11 @@
               :actual m}
              #?(:clj (file-and-line*
                        (test-context-stacktrace (.getStackTrace (Thread/currentThread))))
-                :cljs (t/file-and-line (js/Error.) 4))))))
+                :cljs (file-and-line** (.-stack js-error)))))))
 
 (defn check?
   [_ form]
-  `(let [m# ~(nth form 1)]
-     (check-results m#)))
+  `(check-results ~@(rest form)))
 
 
 #?(:clj

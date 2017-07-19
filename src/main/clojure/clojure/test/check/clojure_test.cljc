@@ -17,12 +17,14 @@
             [clojure.test.check.results :as results]))
 
 (defn assert-check
-  [{:keys [result result-data] :as m}]
+  [{:keys [result result-data] :as m} js-error]
   (prn m)
   (if (and (not (results/passing? result))
            (exception-like? (:clojure.test.check.properties/error result-data)))
     (throw (:clojure.test.check.properties/error result-data))
-    (ct/is (clojure.test.check.clojure-test/check? m))))
+    (ct/is (clojure.test.check.clojure-test/check?
+            m
+            js-error))))
 
 (def ^:dynamic *default-test-count* 100)
 
@@ -75,7 +77,8 @@
    `(defn ~(vary-meta name assoc
                       ::defspec true
                       :test `#(clojure.test.check.clojure-test/assert-check
-                               (assoc (~name) :test-var (str '~name))))
+                               (assoc (~name) :test-var (str '~name))
+                               (js/Error.)))
       {:arglists '([] ~'[num-tests & {:keys [seed max-size reporter-fn]}])}
       ([] (let [options# (process-options ~options)]
             (apply ~name (:num-tests options#) (apply concat options#))))
